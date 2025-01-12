@@ -71,7 +71,7 @@ static void res_chg_event_cb(lv_event_t * e);
  **********************/
 static bool inited = false;
 static lv_timer_t * event_handler_timer;
-
+static lv_sdl_window_event_callback g_sdl_window_event_callback = NULL;
 /**********************
  *      MACROS
  **********************/
@@ -325,6 +325,9 @@ static void sdl_event_handler(lv_timer_t * t)
                     break;
             }
         }
+        if (g_sdl_window_event_callback) {
+          g_sdl_window_event_callback(&event);
+        }
         if(event.type == SDL_QUIT) {
             SDL_Quit();
             lv_deinit();
@@ -334,6 +337,10 @@ static void sdl_event_handler(lv_timer_t * t)
 #endif
         }
     }
+}
+
+void lv_sdl_window_set_event_callback(lv_sdl_window_event_callback cb) {
+  g_sdl_window_event_callback = cb;
 }
 
 static void window_create(lv_display_t * disp)

@@ -30,6 +30,10 @@ extern "C" {
 /**********************
  *      TYPEDEFS
  **********************/
+//
+
+// event type is SDL_Event *
+typedef void(*lv_sdl_window_event_callback)(void* event);
 
 /**********************
  * GLOBAL PROTOTYPES
@@ -48,6 +52,8 @@ void lv_sdl_window_set_title(lv_display_t * disp, const char * title);
 void * lv_sdl_window_get_renderer(lv_display_t * disp);
 
 void lv_sdl_quit(void);
+
+void lv_sdl_window_set_event_callback(lv_sdl_window_event_callback cb);
 
 /**********************
  *      MACROS
