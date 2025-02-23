@@ -40,6 +40,7 @@ typedef void(*lv_sdl_window_event_callback)(void* event);
  **********************/
 
 lv_display_t * lv_sdl_window_create(int32_t hor_res, int32_t ver_res);
+lv_display_t * lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,void* window);
 
 void lv_sdl_window_set_resizeable(lv_display_t * disp, bool value);
 
