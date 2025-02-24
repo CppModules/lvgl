@@ -85,7 +85,11 @@ static lv_sdl_window_event_callback g_sdl_window_event_callback = NULL;
 lv_display_t *lv_sdl_window_create_base(int32_t hor_res, int32_t ver_res,
                                         void *window_ptr) {
   if (!inited) {
-    SDL_Init(SDL_INIT_VIDEO);
+    auto reCode = SDL_Init(SDL_INIT_VIDEO);
+    if (reCode !=0) {
+      SDL_Log("Failed to init SDL:%s", SDL_GetError());
+      return NULL;
+    }
     SDL_StartTextInput();
     event_handler_timer = lv_timer_create(sdl_event_handler, 5, NULL);
     lv_tick_set_cb(SDL_GetTicks);
@@ -155,7 +159,25 @@ lv_display_t *lv_sdl_window_create(int32_t hor_res, int32_t ver_res) {
 
 lv_display_t *lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,
                                         void *window) {
-  return lv_sdl_window_create_base(hor_res, ver_res, SDL_CreateWindowFrom(window));
+  if (!inited) {
+    auto reCode = SDL_Init(SDL_INIT_VIDEO);
+    if (reCode !=0) {
+      SDL_Log("Failed to init SDL:%s", SDL_GetError());
+      return NULL;
+    }
+    SDL_StartTextInput();
+    event_handler_timer = lv_timer_create(sdl_event_handler, 5, NULL);
+    lv_tick_set_cb(SDL_GetTicks);
+    lv_delay_set_cb(SDL_Delay);
+
+    inited = true;
+  }
+  auto rw = SDL_CreateWindowFrom(window);
+  if (rw == NULL) {
+  SDL_Log("Failed to create window from SDL_Window:%s", SDL_GetError());
+      return NULL;
+  }
+  return lv_sdl_window_create_base(hor_res, ver_res, rw);
 };
 
 void lv_sdl_window_set_resizeable(lv_display_t *disp, bool value) {
@@ -368,6 +390,7 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
 #if LV_SDL_FULLSCREEN
     flag |= SDL_WINDOW_FULLSCREEN;
 #endif
+    flag |= SDL_WINDOW_HIDDEN;
     dsc->window = SDL_CreateWindow(
         "LVGL Simulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         hor_res, ver_res,
