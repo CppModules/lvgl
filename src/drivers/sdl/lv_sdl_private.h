@@ -31,12 +31,12 @@ extern "C" {
  *      TYPEDEFS
  **********************/
 
-typedef struct {
-    void * backend_data;
-    SDL_Window * window;
-    float zoom;
-    uint8_t ignore_size_chg;
-} lv_sdl_window_t;
+// typedef struct {
+//     void * backend_data;
+//     SDL_Window * window;
+//     float zoom;
+//     uint8_t ignore_size_chg;
+// } lv_sdl_window_t;
 
 void lv_sdl_backend_set_display_data(lv_display_t * display, void * backend_display_data);
 void * lv_sdl_backend_get_display_data(lv_display_t * display);

@@ -1285,7 +1285,7 @@ static void update_cursor_position_on_click(lv_event_t * e)
     }
 
     if(ta->text_sel_en) {
-        if(!ta->text_sel_in_prog && !click_outside_label && code == LV_EVENT_PRESSED) {
+        if(!ta->text_sel_in_prog && code == LV_EVENT_PRESSED) {
             /*Input device just went down. Store the selection start position*/
             ta->sel_start    = char_id_at_click;
             ta->sel_end      = LV_LABEL_TEXT_SELECTION_OFF;
