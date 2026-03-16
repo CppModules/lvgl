@@ -14,6 +14,8 @@
 #include "../../core/lv_group.h"
 #include "../../misc/lv_assert.h"
 #include "../../misc/lv_math.h"
+#include "../../misc/lv_text_private.h"
+#include "../../core/lv_observer_private.h"
 #include "../../draw/lv_draw_arc.h"
 
 /*********************
@@ -51,10 +53,10 @@ static void scale_get_tick_points(lv_obj_t * obj, const uint32_t tick_idx, bool 
 static void scale_get_label_coords(lv_obj_t * obj, lv_draw_label_dsc_t * label_dsc, lv_point_t * tick_point,
                                    lv_area_t * label_coords);
 static void scale_set_indicator_label_properties(lv_obj_t * obj, lv_draw_label_dsc_t * label_dsc,
-                                                 lv_style_t * indicator_section_style);
-static void scale_set_line_properties(lv_obj_t * obj, lv_draw_line_dsc_t * line_dsc, lv_style_t * section_style,
+                                                 const lv_style_t * indicator_section_style);
+static void scale_set_line_properties(lv_obj_t * obj, lv_draw_line_dsc_t * line_dsc, const lv_style_t * section_style,
                                       lv_part_t part);
-static void scale_set_arc_properties(lv_obj_t * obj, lv_draw_arc_dsc_t * arc_dsc, lv_style_t * section_style);
+static void scale_set_arc_properties(lv_obj_t * obj, lv_draw_arc_dsc_t * arc_dsc, const lv_style_t * section_style);
 /* Helpers */
 static void scale_find_section_tick_idx(lv_obj_t * obj);
 static void scale_store_main_line_tick_width_compensation(lv_obj_t * obj, const uint32_t tick_idx,
@@ -67,9 +69,64 @@ static void scale_build_custom_label_text(lv_obj_t * obj, lv_draw_label_dsc_t * 
 
 static void scale_free_line_needle_points_cb(lv_event_t * e);
 
+static bool scale_is_major_tick(lv_scale_t * scale, uint32_t tick_idx);
+
+static lv_result_t update_needle(lv_scale_t * scale, lv_obj_t * needle, int32_t length, int32_t value);
+static void needle_deleted_cb(lv_event_t * e);
+
+#if LV_USE_OBSERVER
+    static void scale_section_min_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
+    static void scale_section_max_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
+#endif /*LV_USE_OBSERVER*/
+
 /**********************
  *  STATIC VARIABLES
  **********************/
+
+#if LV_USE_OBJ_PROPERTY
+static const lv_property_ops_t lv_scale_properties[] = {
+    {
+        .id = LV_PROPERTY_SCALE_MODE,
+        .setter = lv_scale_set_mode,
+        .getter = lv_scale_get_mode,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_TOTAL_TICK_COUNT,
+        .setter = lv_scale_set_total_tick_count,
+        .getter = lv_scale_get_total_tick_count,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_MAJOR_TICK_EVERY,
+        .setter = lv_scale_set_major_tick_every,
+        .getter = lv_scale_get_major_tick_every,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_LABEL_SHOW,
+        .setter = lv_scale_set_label_show,
+        .getter = lv_scale_get_label_show,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_ANGLE_RANGE,
+        .setter = lv_scale_set_angle_range,
+        .getter = lv_scale_get_angle_range,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_ROTATION,
+        .setter = lv_scale_set_rotation,
+        .getter = lv_scale_get_rotation,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_RANGE_MIN_VALUE,
+        .setter = lv_scale_set_min_value,
+        .getter = lv_scale_get_range_min_value,
+    },
+    {
+        .id = LV_PROPERTY_SCALE_RANGE_MAX_VALUE,
+        .setter = lv_scale_set_max_value,
+        .getter = lv_scale_get_range_max_value,
+    },
+};
+#endif
 
 const lv_obj_class_t lv_scale_class  = {
     .constructor_cb = lv_scale_constructor,
@@ -78,7 +135,8 @@ const lv_obj_class_t lv_scale_class  = {
     .instance_size = sizeof(lv_scale_t),
     .editable = LV_OBJ_CLASS_EDITABLE_TRUE,
     .base_class = &lv_obj_class,
-    .name = "scale",
+    .name = "lv_scale",
+    LV_PROPERTY_CLASS_FIELDS(scale, SCALE)
 };
 
 /**********************
@@ -155,6 +213,26 @@ void lv_scale_set_range(lv_obj_t * obj, int32_t min, int32_t max)
     lv_scale_t * scale = (lv_scale_t *)obj;
 
     scale->range_min = min;
+    scale->range_max = max;
+
+    lv_obj_invalidate(obj);
+}
+
+void lv_scale_set_min_value(lv_obj_t * obj, int32_t min)
+{
+    LV_ASSERT_OBJ(obj, MY_CLASS);
+    lv_scale_t * scale = (lv_scale_t *)obj;
+    if(scale->range_min == min) return;
+    scale->range_min = min;
+
+    lv_obj_invalidate(obj);
+}
+
+void lv_scale_set_max_value(lv_obj_t * obj, int32_t max)
+{
+    LV_ASSERT_OBJ(obj, MY_CLASS);
+    lv_scale_t * scale = (lv_scale_t *)obj;
+    if(scale->range_max == max) return;
     scale->range_max = max;
 
     lv_obj_invalidate(obj);
@@ -246,7 +324,7 @@ void lv_scale_set_line_needle_value(lv_obj_t * obj, lv_obj_t * needle_line, int3
     if(needle_line_points == NULL) {
         uint32_t i;
         uint32_t line_event_cnt = lv_obj_get_event_count(needle_line);
-        for(i = 0; i < line_event_cnt; i--) {
+        for(i = 0; i < line_event_cnt; i++) {
             lv_event_dsc_t * dsc = lv_obj_get_event_dsc(needle_line, i);
             if(lv_event_dsc_get_cb(dsc) == scale_free_line_needle_points_cb) {
                 needle_line_points = lv_event_dsc_get_user_data(dsc);
@@ -268,6 +346,8 @@ void lv_scale_set_line_needle_value(lv_obj_t * obj, lv_obj_t * needle_line, int3
     needle_line_points[1].y = scale_height / 2 + needle_length_y;
 
     lv_line_set_points_mutable(needle_line, needle_line_points, 2);
+
+    update_needle(scale, needle_line, needle_length, value);
 }
 
 void lv_scale_set_image_needle_value(lv_obj_t * obj, lv_obj_t * needle_img, int32_t value)
@@ -291,6 +371,7 @@ void lv_scale_set_image_needle_value(lv_obj_t * obj, lv_obj_t * needle_img, int3
     }
 
     lv_image_set_rotation(needle_img, (scale->rotation + angle) * 10);
+    update_needle(scale, needle_img, 0, value);
 }
 
 void lv_scale_set_text_src(lv_obj_t * obj, const char * txt_src[])
@@ -350,6 +431,36 @@ lv_scale_section_t * lv_scale_add_section(lv_obj_t * obj)
     return section;
 }
 
+
+void lv_scale_set_section_range(lv_obj_t * scale, lv_scale_section_t * section, int32_t min, int32_t max)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    lv_scale_set_section_min_value(scale, section, min);
+    lv_scale_set_section_max_value(scale, section, max);
+}
+
+void lv_scale_set_section_min_value(lv_obj_t * scale, lv_scale_section_t * section, int32_t min)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    if(section->range_min == min) return;
+    section->range_min = min;
+    lv_obj_invalidate(scale);
+}
+
+void lv_scale_set_section_max_value(lv_obj_t * scale, lv_scale_section_t * section, int32_t max)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    if(section->range_max == max) return;
+    section->range_max = max;
+    lv_obj_invalidate(scale);
+}
+
 void lv_scale_section_set_range(lv_scale_section_t * section, int32_t min, int32_t max)
 {
     if(NULL == section) return;
@@ -358,8 +469,38 @@ void lv_scale_section_set_range(lv_scale_section_t * section, int32_t min, int32
     section->range_max = max;
 }
 
+
+void lv_scale_set_section_style_main(lv_obj_t * scale, lv_scale_section_t * section, const lv_style_t * style)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    section->main_style = style;
+    lv_obj_invalidate(scale);
+}
+
+void lv_scale_set_section_style_indicator(lv_obj_t * scale, lv_scale_section_t * section, const lv_style_t * style)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    section->indicator_style = style;
+    lv_obj_invalidate(scale);
+}
+
+void lv_scale_set_section_style_items(lv_obj_t * scale, lv_scale_section_t * section, const lv_style_t * style)
+{
+    LV_ASSERT_OBJ(scale, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    section->items_style = style;
+    lv_obj_invalidate(scale);
+}
+
 void lv_scale_section_set_style(lv_scale_section_t * section, lv_part_t part, lv_style_t * section_part_style)
 {
+    LV_LOG_WARN("Deprecated, use lv_scale_set_section_style_main/indicator/items instead");
+
     if(NULL == section) return;
 
     switch(part) {
@@ -400,7 +541,7 @@ int32_t lv_scale_get_major_tick_every(lv_obj_t * obj)
     return scale->major_tick_every;
 }
 
-lv_scale_mode_t lv_scale_get_rotation(lv_obj_t * obj)
+int32_t lv_scale_get_rotation(lv_obj_t * obj)
 {
     lv_scale_t * scale = (lv_scale_t *)obj;
     return scale->rotation;
@@ -434,6 +575,42 @@ int32_t lv_scale_get_range_max_value(lv_obj_t * obj)
  * Other functions
  *====================*/
 
+#if LV_USE_OBSERVER
+
+lv_observer_t * lv_scale_bind_section_min_value(lv_obj_t * obj, lv_scale_section_t * section, lv_subject_t * subject)
+{
+    LV_ASSERT_NULL(subject);
+    LV_ASSERT_OBJ(obj, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    if(subject->type != LV_SUBJECT_TYPE_INT) {
+        LV_LOG_WARN("Incompatible subject type: %d", subject->type);
+        return NULL;
+    }
+
+    lv_observer_t * observer = lv_subject_add_observer_obj(subject, scale_section_min_value_observer_cb, obj, section);
+
+    return observer;
+}
+
+lv_observer_t * lv_scale_bind_section_max_value(lv_obj_t * obj, lv_scale_section_t * section, lv_subject_t * subject)
+{
+    LV_ASSERT_NULL(subject);
+    LV_ASSERT_OBJ(obj, MY_CLASS);
+    LV_ASSERT_NULL(section);
+
+    if(subject->type != LV_SUBJECT_TYPE_INT) {
+        LV_LOG_WARN("Incompatible subject type: %d", subject->type);
+        return NULL;
+    }
+
+    lv_observer_t * observer = lv_subject_add_observer_obj(subject, scale_section_max_value_observer_cb, obj, section);
+
+    return observer;
+}
+
+#endif /*LV_USE_OBSERVER*/
+
 /**********************
  *   STATIC FUNCTIONS
  **********************/
@@ -461,6 +638,7 @@ static void lv_scale_constructor(const lv_obj_class_t * class_p, lv_obj_t * obj)
     scale->draw_ticks_on_top = false;
     scale->custom_label_cnt = 0;
     scale->txt_src = NULL;
+    lv_array_init(&scale->needles, 0, sizeof(lv_scale_needle_t));
 
     lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -480,6 +658,13 @@ static void lv_scale_destructor(const lv_obj_class_t * class_p, lv_obj_t * obj)
         lv_free(section);
     }
     lv_ll_clear(&scale->section_ll);
+
+    size_t needle_count = lv_array_size(&scale->needles);
+    for(size_t i = 0; i < needle_count; ++i) {
+        lv_scale_needle_t * scale_needle = lv_array_at(&scale->needles, i);
+        lv_obj_remove_event_cb(scale_needle->obj, needle_deleted_cb);
+    }
+    lv_array_deinit(&scale->needles);
 
     LV_TRACE_OBJ_CREATE("finished");
 }
@@ -531,6 +716,18 @@ static void lv_scale_event(const lv_obj_class_t * class_p, lv_event_t * event)
         /* NOTE: Extend scale draw size so the first tick label can be shown */
         lv_event_set_ext_draw_size(event, 100);
     }
+    else if(event_code == LV_EVENT_STYLE_CHANGED) {
+        size_t needle_count = lv_array_size(&scale->needles);
+        for(size_t i = 0; i < needle_count; ++i) {
+            lv_scale_needle_t * needle = lv_array_at(&scale->needles, i);
+            if(lv_obj_has_class(needle->obj, &lv_line_class)) {
+                lv_scale_set_line_needle_value(obj, needle->obj, needle->length, needle->value);
+            }
+            else {
+                lv_scale_set_image_needle_value(obj, needle->obj, needle->value);
+            }
+        }
+    }
     else {
         /* Nothing to do. Invalid event */
     }
@@ -545,12 +742,15 @@ static void scale_draw_indicator(lv_obj_t * obj, lv_event_t * event)
 
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
+    label_dsc.base.layer = layer;
     /* Formatting the labels with the configured style for LV_PART_INDICATOR */
     lv_obj_init_draw_label_dsc(obj, LV_PART_INDICATOR, &label_dsc);
+
 
     /* Major tick style */
     lv_draw_line_dsc_t major_tick_dsc;
     lv_draw_line_dsc_init(&major_tick_dsc);
+    major_tick_dsc.base.layer = layer;
     lv_obj_init_draw_line_dsc(obj, LV_PART_INDICATOR, &major_tick_dsc);
     if(LV_SCALE_MODE_ROUND_OUTER == scale->mode || LV_SCALE_MODE_ROUND_INNER == scale->mode) {
         major_tick_dsc.raw_end = 0;
@@ -559,11 +759,13 @@ static void scale_draw_indicator(lv_obj_t * obj, lv_event_t * event)
     /* Configure line draw descriptor for the minor tick drawing */
     lv_draw_line_dsc_t minor_tick_dsc;
     lv_draw_line_dsc_init(&minor_tick_dsc);
+    minor_tick_dsc.base.layer = layer;
     lv_obj_init_draw_line_dsc(obj, LV_PART_ITEMS, &minor_tick_dsc);
 
     /* Main line style */
     lv_draw_line_dsc_t main_line_dsc;
     lv_draw_line_dsc_init(&main_line_dsc);
+    main_line_dsc.base.layer = layer;
     lv_obj_init_draw_line_dsc(obj, LV_PART_MAIN, &main_line_dsc);
 
     /* These 2 values need to be signed since they are being passed
@@ -573,14 +775,14 @@ static void scale_draw_indicator(lv_obj_t * obj, lv_event_t * event)
     uint32_t major_tick_idx = 0U;
     for(tick_idx = 0; tick_idx < total_tick_count; tick_idx++) {
         /* A major tick is the one which has a label in it */
-        bool is_major_tick = false;
-        if(tick_idx % scale->major_tick_every == 0) is_major_tick = true;
+        bool is_major_tick = scale_is_major_tick(scale, tick_idx);
         if(is_major_tick) major_tick_idx++;
 
         const int32_t tick_value = lv_map(tick_idx, 0, total_tick_count - 1, scale->range_min, scale->range_max);
 
         label_dsc.base.id1 = tick_idx;
         label_dsc.base.id2 = tick_value;
+        label_dsc.base.layer = layer;
 
         /* Overwrite label and tick properties if tick value is within section range */
         lv_scale_section_t * section;
@@ -616,11 +818,15 @@ static void scale_draw_indicator(lv_obj_t * obj, lv_event_t * event)
         if(is_major_tick) {
             major_tick_dsc.p1 = lv_point_to_precise(&tick_point_a);
             major_tick_dsc.p2 = lv_point_to_precise(&tick_point_b);
+            major_tick_dsc.base.id1 = tick_idx;
+            major_tick_dsc.base.id2 = tick_value;
             lv_draw_line(layer, &major_tick_dsc);
         }
         else {
             minor_tick_dsc.p1 = lv_point_to_precise(&tick_point_a);
             minor_tick_dsc.p2 = lv_point_to_precise(&tick_point_b);
+            minor_tick_dsc.base.id1 = tick_idx;
+            minor_tick_dsc.base.id2 = tick_value;
             lv_draw_line(layer, &minor_tick_dsc);
         }
     }
@@ -740,6 +946,12 @@ static void scale_draw_label(lv_obj_t * obj, lv_event_t * event, lv_draw_label_d
     else {
         lv_draw_label(layer, label_dsc, &label_coords);
     }
+
+    if(label_dsc->text_local) {
+        /* clear the reference to the text buffer on the stack */
+        label_dsc->text = NULL;
+        label_dsc->text_local = false;
+    }
 }
 
 static void scale_calculate_main_compensation(lv_obj_t * obj)
@@ -765,7 +977,7 @@ static void scale_calculate_main_compensation(lv_obj_t * obj)
     uint32_t tick_idx = 0;
     for(tick_idx = 0; tick_idx < total_tick_count; tick_idx++) {
 
-        const bool is_major_tick = tick_idx % scale->major_tick_every == 0;
+        const bool is_major_tick = scale_is_major_tick(scale, tick_idx);
 
         const int32_t tick_value = lv_map(tick_idx, 0, total_tick_count - 1, scale->range_min, scale->range_max);
 
@@ -814,6 +1026,7 @@ static void scale_draw_main(lv_obj_t * obj, lv_event_t * event)
         /* Configure both line and label draw descriptors for the tick and label drawings */
         lv_draw_line_dsc_t line_dsc;
         lv_draw_line_dsc_init(&line_dsc);
+        line_dsc.base.layer = layer;
         lv_obj_init_draw_line_dsc(obj, LV_PART_MAIN, &line_dsc);
 
         /* Get style properties so they can be used in the main line drawing */
@@ -878,6 +1091,7 @@ static void scale_draw_main(lv_obj_t * obj, lv_event_t * event)
         LV_LL_READ_BACK(&scale->section_ll, section) {
             lv_draw_line_dsc_t section_line_dsc;
             lv_draw_line_dsc_init(&section_line_dsc);
+            section_line_dsc.base.layer = layer;
             lv_obj_init_draw_line_dsc(obj, LV_PART_MAIN, &section_line_dsc);
 
             /* Calculate the points of the section line */
@@ -920,6 +1134,7 @@ static void scale_draw_main(lv_obj_t * obj, lv_event_t * event)
         /* Configure arc draw descriptors for the main part */
         lv_draw_arc_dsc_t arc_dsc;
         lv_draw_arc_dsc_init(&arc_dsc);
+        arc_dsc.base.layer = layer;
         lv_obj_init_draw_arc_dsc(obj, LV_PART_MAIN, &arc_dsc);
 
         lv_point_t arc_center;
@@ -943,6 +1158,7 @@ static void scale_draw_main(lv_obj_t * obj, lv_event_t * event)
         LV_LL_READ_BACK(&scale->section_ll, section) {
             lv_draw_arc_dsc_t main_arc_section_dsc;
             lv_draw_arc_dsc_init(&main_arc_section_dsc);
+            main_arc_section_dsc.base.layer = layer;
             lv_obj_init_draw_arc_dsc(obj, LV_PART_MAIN, &main_arc_section_dsc);
 
             lv_point_t section_arc_center;
@@ -1172,10 +1388,22 @@ static void scale_get_label_coords(lv_obj_t * obj, lv_draw_label_dsc_t * label_d
 {
     lv_scale_t * scale = (lv_scale_t *)obj;
 
+    lv_text_attributes_t attributes = {0};
+    attributes.letter_space = label_dsc->letter_space;
+    attributes.line_space = label_dsc->line_space;
+    attributes.max_width = LV_COORD_MAX;
+    attributes.text_flags = LV_TEXT_FLAG_NONE;
+
     /* Reserve appropriate size for the tick label */
     lv_point_t label_size;
-    lv_text_get_size(&label_size, label_dsc->text,
-                     label_dsc->font, label_dsc->letter_space, label_dsc->line_space, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+
+    if(label_dsc->text != NULL) {
+        lv_text_get_size_attributes(&label_size, label_dsc->text, label_dsc->font, &attributes);
+    }
+    else {
+        label_size.x = 0;
+        label_size.y = 0;
+    }
 
     /* Set the label draw area at some distance of the major tick */
     if((LV_SCALE_MODE_HORIZONTAL_BOTTOM == scale->mode) || (LV_SCALE_MODE_HORIZONTAL_TOP == scale->mode)) {
@@ -1223,7 +1451,7 @@ static void scale_get_label_coords(lv_obj_t * obj, lv_draw_label_dsc_t * label_d
  * @param items_section_style  pointer to indicator section style
  * @param part      line part, example: LV_PART_INDICATOR, LV_PART_ITEMS, LV_PART_MAIN
  */
-static void scale_set_line_properties(lv_obj_t * obj, lv_draw_line_dsc_t * line_dsc, lv_style_t * section_style,
+static void scale_set_line_properties(lv_obj_t * obj, lv_draw_line_dsc_t * line_dsc, const lv_style_t * section_style,
                                       lv_part_t part)
 {
     if(section_style) {
@@ -1273,7 +1501,7 @@ static void scale_set_line_properties(lv_obj_t * obj, lv_draw_line_dsc_t * line_
  * @param arc_dsc  pointer to arc descriptor
  * @param items_section_style  pointer to indicator section style
  */
-static void scale_set_arc_properties(lv_obj_t * obj, lv_draw_arc_dsc_t * arc_dsc, lv_style_t * section_style)
+static void scale_set_arc_properties(lv_obj_t * obj, lv_draw_arc_dsc_t * arc_dsc, const lv_style_t * section_style)
 {
     if(section_style) {
         lv_style_value_t value;
@@ -1343,7 +1571,7 @@ static void scale_set_arc_properties(lv_obj_t * obj, lv_draw_arc_dsc_t * arc_dsc
  * @param items_section_style  pointer to indicator section style
  */
 static void scale_set_indicator_label_properties(lv_obj_t * obj, lv_draw_label_dsc_t * label_dsc,
-                                                 lv_style_t * indicator_section_style)
+                                                 const lv_style_t * indicator_section_style)
 {
     if(indicator_section_style) {
         lv_style_value_t value;
@@ -1405,8 +1633,7 @@ static void scale_find_section_tick_idx(lv_obj_t * obj)
     /* Section handling */
     uint32_t tick_idx = 0;
     for(tick_idx = 0; tick_idx < total_tick_count; tick_idx++) {
-        bool is_major_tick = false;
-        if(tick_idx % scale->major_tick_every == 0) is_major_tick = true;
+        bool is_major_tick = scale_is_major_tick(scale, tick_idx);
 
         const int32_t tick_value = lv_map(tick_idx, 0, total_tick_count - 1, min_out, max_out);
 
@@ -1570,7 +1797,7 @@ static void scale_store_section_line_tick_width_compensation(lv_obj_t * obj, con
 
         /* This can also apply when
          * (tick_idx == section->first_tick_idx_in_section) when the
-         * beginning and ending vlues of the range are the same. */
+         * beginning and ending values of the range are the same. */
         if(tick_idx == section->last_tick_idx_in_section) {
             if(section->last_tick_idx_is_major) {
                 tmp_width = major_tick_dsc->width;
@@ -1600,5 +1827,67 @@ static void scale_free_line_needle_points_cb(lv_event_t * e)
     lv_point_precise_t * needle_line_points = lv_event_get_user_data(e);
     lv_free(needle_line_points);
 }
+
+static bool scale_is_major_tick(lv_scale_t * scale, uint32_t tick_idx)
+{
+    return scale->major_tick_every != 0 && tick_idx % scale->major_tick_every == 0;
+}
+
+static lv_result_t update_needle(lv_scale_t * scale, lv_obj_t * needle, int32_t length, int32_t value)
+{
+    /* First try to find the needle in the haystack (scale's needle list) */
+    size_t needle_count = lv_array_size(&scale->needles);
+    for(size_t i = 0; i < needle_count; ++i) {
+        lv_scale_needle_t * scale_needle = lv_array_at(&scale->needles, i);
+        if(scale_needle->obj == needle) {
+            scale_needle->value = value;
+            scale_needle->length = length;
+            return LV_RESULT_OK;
+        }
+    }
+
+    /* Needle is not yet part of the haystack */
+    lv_scale_needle_t scale_needle = {.obj = needle, .length = length, .value = value};
+    lv_result_t res = lv_array_push_back(&scale->needles, &scale_needle);
+    if(res != LV_RESULT_OK) {
+        LV_LOG_WARN("Failed to attach needle to scale - not enough memory");
+        return LV_RESULT_INVALID;
+    }
+
+    lv_obj_add_event_cb(needle, needle_deleted_cb, LV_EVENT_DELETE, scale);
+    return LV_RESULT_OK;
+}
+
+static void needle_deleted_cb(lv_event_t * e)
+{
+    lv_scale_t * scale = lv_event_get_user_data(e);
+    lv_obj_t * needle = lv_event_get_target_obj(e);
+
+    size_t needle_count = lv_array_size(&scale->needles);
+    for(size_t i = 0; i < needle_count; ++i) {
+        lv_scale_needle_t * scale_needle = lv_array_at(&scale->needles, i);
+        if(scale_needle->obj == needle) {
+            lv_array_remove(&scale->needles, i);
+            return;
+        }
+    }
+}
+
+#if LV_USE_OBSERVER
+
+static void scale_section_min_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
+{
+    lv_scale_section_t * section = observer->user_data;
+    lv_scale_set_section_min_value(observer->target, section, subject->value.num);
+}
+
+static void scale_section_max_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
+{
+    lv_scale_section_t * section = observer->user_data;
+    lv_scale_set_section_max_value(observer->target, section, subject->value.num);
+}
+
+#endif /*LV_USE_OBSERVER*/
+
 
 #endif

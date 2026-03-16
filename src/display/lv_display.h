@@ -60,22 +60,22 @@ typedef enum {
 } lv_display_render_mode_t;
 
 typedef enum {
-    LV_SCR_LOAD_ANIM_NONE,
-    LV_SCR_LOAD_ANIM_OVER_LEFT,
-    LV_SCR_LOAD_ANIM_OVER_RIGHT,
-    LV_SCR_LOAD_ANIM_OVER_TOP,
-    LV_SCR_LOAD_ANIM_OVER_BOTTOM,
-    LV_SCR_LOAD_ANIM_MOVE_LEFT,
-    LV_SCR_LOAD_ANIM_MOVE_RIGHT,
-    LV_SCR_LOAD_ANIM_MOVE_TOP,
-    LV_SCR_LOAD_ANIM_MOVE_BOTTOM,
-    LV_SCR_LOAD_ANIM_FADE_IN,
-    LV_SCR_LOAD_ANIM_FADE_ON = LV_SCR_LOAD_ANIM_FADE_IN, /*For backward compatibility*/
-    LV_SCR_LOAD_ANIM_FADE_OUT,
-    LV_SCR_LOAD_ANIM_OUT_LEFT,
-    LV_SCR_LOAD_ANIM_OUT_RIGHT,
-    LV_SCR_LOAD_ANIM_OUT_TOP,
-    LV_SCR_LOAD_ANIM_OUT_BOTTOM,
+    LV_SCREEN_LOAD_ANIM_NONE,
+    LV_SCREEN_LOAD_ANIM_OVER_LEFT,
+    LV_SCREEN_LOAD_ANIM_OVER_RIGHT,
+    LV_SCREEN_LOAD_ANIM_OVER_TOP,
+    LV_SCREEN_LOAD_ANIM_OVER_BOTTOM,
+    LV_SCREEN_LOAD_ANIM_MOVE_LEFT,
+    LV_SCREEN_LOAD_ANIM_MOVE_RIGHT,
+    LV_SCREEN_LOAD_ANIM_MOVE_TOP,
+    LV_SCREEN_LOAD_ANIM_MOVE_BOTTOM,
+    LV_SCREEN_LOAD_ANIM_FADE_IN,
+    LV_SCREEN_LOAD_ANIM_FADE_ON = LV_SCREEN_LOAD_ANIM_FADE_IN, /*For backward compatibility*/
+    LV_SCREEN_LOAD_ANIM_FADE_OUT,
+    LV_SCREEN_LOAD_ANIM_OUT_LEFT,
+    LV_SCREEN_LOAD_ANIM_OUT_RIGHT,
+    LV_SCREEN_LOAD_ANIM_OUT_TOP,
+    LV_SCREEN_LOAD_ANIM_OUT_BOTTOM,
 } lv_screen_load_anim_t;
 
 typedef void (*lv_display_flush_cb_t)(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map);
@@ -159,6 +159,13 @@ void lv_display_set_offset(lv_display_t * disp, int32_t x, int32_t y);
 void lv_display_set_rotation(lv_display_t * disp, lv_display_rotation_t rotation);
 
 /**
+ * Use matrix rotation for the display. This function is depended on `LV_DRAW_TRANSFORM_USE_MATRIX`
+ * @param disp      pointer to a display (NULL to use the default display)
+ * @param enable    true: enable matrix rotation, false: disable
+ */
+void lv_display_set_matrix_rotation(lv_display_t * disp, bool enable);
+
+/**
  * Set the DPI (dot per inch) of the display.
  * dpi = sqrt(hor_res^2 + ver_res^2) / diagonal"
  * @param disp      pointer to a display
@@ -179,6 +186,20 @@ int32_t lv_display_get_horizontal_resolution(const lv_display_t * disp);
  * @return          the vertical resolution of the display
  */
 int32_t lv_display_get_vertical_resolution(const lv_display_t * disp);
+
+/**
+ * Get the original horizontal resolution of a display without considering rotation
+ * @param disp      pointer to a display (NULL to use the default display)
+ * @return          the horizontal resolution of the display.
+ */
+int32_t lv_display_get_original_horizontal_resolution(const lv_display_t * disp);
+
+/**
+ * Get the original vertical resolution of a display without considering rotation
+ * @param disp      pointer to a display (NULL to use the default display)
+ * @return          the vertical resolution of the display
+ */
+int32_t lv_display_get_original_vertical_resolution(const lv_display_t * disp);
 
 /**
  * Get the physical horizontal resolution of a display
@@ -214,6 +235,13 @@ int32_t lv_display_get_offset_y(const lv_display_t * disp);
  * @return          the current rotation
  */
 lv_display_rotation_t lv_display_get_rotation(lv_display_t * disp);
+
+/**
+ * Get if matrix rotation is enabled for a display or not
+ * @param disp      pointer to a display (NULL to use the default display)
+ * @return          true: matrix rotation is enabled; false: disabled
+ */
+bool lv_display_get_matrix_rotation(lv_display_t * disp);
 
 /**
  * Get the DPI of the display
@@ -263,6 +291,13 @@ void lv_display_set_buffers_with_stride(lv_display_t * disp, void * buf1, void *
  * @param buf2              second buffer (can be `NULL`)
  */
 void lv_display_set_draw_buffers(lv_display_t * disp, lv_draw_buf_t * buf1, lv_draw_buf_t * buf2);
+
+/**
+ * Set the third draw buffer for a display.
+ * @param disp              pointer to a display
+ * @param buf3              third buffer
+ */
+void lv_display_set_3rd_draw_buffer(lv_display_t * disp, lv_draw_buf_t * buf3);
 
 /**
  * Set display render mode
@@ -323,6 +358,7 @@ void lv_display_set_tile_cnt(lv_display_t * disp, uint32_t tile_cnt);
 uint32_t lv_display_get_tile_cnt(lv_display_t * disp);
 
 /**
+ * Disabling anti-aliasing is not supported since v9. This function will be removed.
  * Enable anti-aliasing for the render engine
  * @param disp      pointer to a display
  * @param en        true/false
@@ -335,8 +371,6 @@ void lv_display_set_antialiasing(lv_display_t * disp, bool en);
  * @return          true/false
  */
 bool lv_display_get_antialiasing(lv_display_t * disp);
-
-//! @cond Doxygen_Suppress
 
 /**
  * Call from the display driver when the flushing is finished
@@ -353,9 +387,14 @@ LV_ATTRIBUTE_FLUSH_READY void lv_display_flush_ready(lv_display_t * disp);
  */
 LV_ATTRIBUTE_FLUSH_READY bool lv_display_flush_is_last(lv_display_t * disp);
 
-//! @endcond
-
 bool lv_display_is_double_buffered(lv_display_t * disp);
+
+/**
+ * Get display render mode
+ * @param disp      pointer to a display
+ * @return          display's render mode (LV_DISPLAY_RENDER_MODE_PARTIAL/DIRECT/FULL)
+ */
+lv_display_render_mode_t lv_display_get_render_mode(lv_display_t * disp);
 
 /*---------------------
  * SCREENS
@@ -376,6 +415,13 @@ lv_obj_t * lv_display_get_screen_active(lv_display_t * disp);
  * @return          pointer to the previous screen object or NULL if not used now
  */
 lv_obj_t * lv_display_get_screen_prev(lv_display_t * disp);
+
+/**
+ * Return the screen that is currently being loaded by the display
+ * @param disp      pointer to a display object (NULL to use the default screen)
+ * @return          pointer to the screen being loaded or NULL if no screen is currently being loaded
+ */
+lv_obj_t * lv_display_get_screen_loading(lv_display_t * disp);
 
 /**
  * Return the top layer. The top layer is the same on all screens and it is above the normal screen layer.
@@ -399,6 +445,20 @@ lv_obj_t * lv_display_get_layer_sys(lv_display_t * disp);
  */
 lv_obj_t * lv_display_get_layer_bottom(lv_display_t * disp);
 
+
+#if LV_USE_OBJ_NAME
+
+/**
+ * Get screen by its name on a display. The name should be set by
+ * `lv_obj_set_name()` or `lv_obj_set_name_static()`.
+ * @param disp          pointer to a display or NULL to use default display
+ * @param screen_name   name of the screen to get
+ * @return              pointer to the screen, or NULL if not found.
+ */
+lv_obj_t * lv_display_get_screen_by_name(const lv_display_t * disp, const char * screen_name);
+
+#endif /*LV_USE_OBJ_NAME*/
+
 /**
  * Load a screen on the default display
  * @param scr       pointer to a screen
@@ -408,7 +468,7 @@ void lv_screen_load(struct _lv_obj_t * scr);
 /**
  * Switch screen with animation
  * @param scr       pointer to the new screen to load
- * @param anim_type type of the animation from `lv_screen_load_anim_t`, e.g. `LV_SCR_LOAD_ANIM_MOVE_LEFT`
+ * @param anim_type type of the animation from `lv_screen_load_anim_t`, e.g. `LV_SCREEN_LOAD_ANIM_MOVE_LEFT`
  * @param time      time of the animation
  * @param delay     delay before the transition
  * @param auto_del  true: automatically delete the old screen
@@ -556,6 +616,33 @@ lv_timer_t * lv_display_get_refr_timer(lv_display_t * disp);
  */
 void lv_display_delete_refr_timer(lv_display_t * disp);
 
+/**
+ * Register vsync event of a display. `LV_EVENT_VSYNC` event will be sent periodically.
+ * Please don't use it in display event listeners, as it may cause memory leaks and illegal access issues.
+ *
+ * @param disp      pointer to a display
+ * @param event_cb      an event callback
+ * @param user_data     optional user_data
+ */
+bool lv_display_register_vsync_event(lv_display_t * disp, lv_event_cb_t event_cb, void * user_data);
+
+/**
+ * Unregister vsync event of a display. `LV_EVENT_VSYNC` event won't be sent periodically.
+ * Please don't use it in display event listeners, as it may cause memory leaks and illegal access issues.
+ * @param disp      pointer to a display
+ * @param event_cb      an event callback
+ * @param user_data     optional user_data
+ */
+bool lv_display_unregister_vsync_event(lv_display_t * disp, lv_event_cb_t event_cb, void * user_data);
+
+/**
+ * Send an vsync event to a display
+ * @param disp          pointer to a display
+ * @param param         optional param
+ * @return              LV_RESULT_OK: disp wasn't deleted in the event.
+ */
+lv_result_t lv_display_send_vsync_event(lv_display_t * disp, void * param);
+
 void lv_display_set_user_data(lv_display_t * disp, void * user_data);
 void lv_display_set_driver_data(lv_display_t * disp, void * driver_data);
 void * lv_display_get_user_data(lv_display_t * disp);
@@ -568,6 +655,13 @@ lv_draw_buf_t * lv_display_get_buf_active(lv_display_t * disp);
  * @param area      pointer to an area to rotate
  */
 void lv_display_rotate_area(lv_display_t * disp, lv_area_t * area);
+
+/**
+ * Rotate a point in-place according to the display's rotation
+ * @param disp      pointer to a display
+ * @param point     pointer to a point to rotate
+ */
+void lv_display_rotate_point(lv_display_t * disp, lv_point_t * point);
 
 /**
  * Get the size of the draw buffers
@@ -644,6 +738,22 @@ int32_t lv_dpx(int32_t n);
  * @return      number of pixels to use to make that distance
  */
 int32_t lv_display_dpx(const lv_display_t * disp, int32_t n);
+
+#if LV_USE_EXT_DATA
+/**
+ * @brief Attaches external user data and destructor callback to a display
+ *
+ * Associates custom user data with an LVGL display and specifies a destructor function
+ * that will be automatically invoked when the display is deleted to properly clean up
+ * the associated resources.
+ *
+ * @param disp       Pointer to a display
+ * @param data       User-defined data pointer to associate with the display
+ * @param free_cb    Callback function for cleaning up data when display is deleted.
+ *                   Receives data as parameter. NULL means no cleanup required.
+ */
+void lv_display_set_external_data(lv_display_t * disp, void * data, void (* free_cb)(void * data));
+#endif
 
 #ifdef __cplusplus
 } /*extern "C"*/

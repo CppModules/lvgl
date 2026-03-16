@@ -142,14 +142,17 @@ void lv_profiler_builtin_init(const lv_profiler_builtin_config_t * config)
         profiler_ctx->config.flush_cb("#\n");
     }
 
-    lv_profiler_builtin_set_enable(true);
+    lv_profiler_builtin_set_enable(LV_PROFILER_BUILTIN_DEFAULT_ENABLE);
 
     LV_LOG_INFO("init OK, item_num = %d", (int)num);
 }
 
 void lv_profiler_builtin_uninit(void)
 {
-    LV_ASSERT_NULL(profiler_ctx);
+    if(!profiler_ctx) {
+        return;
+    }
+
     LV_PROFILER_MULTEX_DEINIT;
     lv_free(profiler_ctx->item_arr);
     lv_free(profiler_ctx);
@@ -176,10 +179,9 @@ void lv_profiler_builtin_flush(void)
 
 void lv_profiler_builtin_write(const char * func, char tag)
 {
-    LV_ASSERT_NULL(profiler_ctx);
     LV_ASSERT_NULL(func);
 
-    if(!profiler_ctx->enable) {
+    if(!(profiler_ctx && profiler_ctx->enable)) {
         return;
     }
 
@@ -241,12 +243,12 @@ static void flush_no_lock(void)
     uint32_t tick_per_sec = profiler_ctx->config.tick_per_sec;
     while(cur < profiler_ctx->cur_index) {
         lv_profiler_builtin_item_t * item = &profiler_ctx->item_arr[cur++];
-        uint32_t sec = item->tick / tick_per_sec;
-        uint32_t nsec = (item->tick % tick_per_sec) * (LV_PROFILER_TICK_PER_SEC_MAX / tick_per_sec);
+        uint64_t sec = item->tick / tick_per_sec;
+        uint64_t nsec = (item->tick % tick_per_sec) * (LV_PROFILER_TICK_PER_SEC_MAX / tick_per_sec);
 
 #if LV_USE_OS
         lv_snprintf(buf, sizeof(buf),
-                    "   LVGL-%d [%d] %" LV_PRIu32 ".%09" LV_PRIu32 ": tracing_mark_write: %c|1|%s\n",
+                    "   LVGL-%d [%d] %" LV_PRIu64 ".%09" LV_PRIu64 ": tracing_mark_write: %c|1|%s\n",
                     item->tid,
                     item->cpu,
                     sec,
@@ -255,7 +257,7 @@ static void flush_no_lock(void)
                     item->func);
 #else
         lv_snprintf(buf, sizeof(buf),
-                    "   LVGL-1 [0] %" LV_PRIu32 ".%09" LV_PRIu32 ": tracing_mark_write: %c|1|%s\n",
+                    "   LVGL-1 [0] %" LV_PRIu64 ".%09" LV_PRIu64 ": tracing_mark_write: %c|1|%s\n",
                     sec,
                     nsec,
                     item->tag,

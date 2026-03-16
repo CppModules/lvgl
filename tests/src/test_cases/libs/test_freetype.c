@@ -1,15 +1,15 @@
 #if LV_BUILD_TEST
-#include "../lvgl.h"
-#include "../../libs/freetype/lv_freetype_private.h"
+#include "lvgl.h"
+#include "src/libs/freetype/lv_freetype_private.h"
 
 #include "unity/unity.h"
 
 #if LV_USE_FREETYPE
 
 #ifndef NON_AMD64_BUILD
-    #define TEST_FREETYPE_ASSERT_EQUAL_SCREENSHOT(NAME) TEST_ASSERT_EQUAL_SCREENSHOT("libs/freetype_" NAME ".lp64.png")
+    #define EXT_NAME ".lp64.png"
 #else
-    #define TEST_FREETYPE_ASSERT_EQUAL_SCREENSHOT(NAME) TEST_ASSERT_EQUAL_SCREENSHOT("libs/freetype_" NAME ".lp32.png")
+    #define EXT_NAME ".lp32.png"
 #endif
 
 #define OPTION_GENERATE_OUTLINE_DATA 0
@@ -398,34 +398,50 @@ void setUp(void)
 
 void tearDown(void)
 {
-    /* Function run after every test */
+    lv_obj_clean(lv_screen_active());
 }
 
-void test_freetype_bitmap_rendering_test(void)
+static void test_freetype_with_render_mode(lv_freetype_font_render_mode_t render_mode, const char * screenshot_name)
 {
     /*Create a font*/
     lv_font_t * font_italic = lv_freetype_font_create("./src/test_files/fonts/noto/NotoSansSC-Regular.ttf",
-                                                      LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                      render_mode,
                                                       24,
                                                       LV_FREETYPE_FONT_STYLE_ITALIC);
+    TEST_ASSERT_NOT_NULL(font_italic);
     lv_font_t * font_normal = lv_freetype_font_create("./src/test_files/fonts/noto/NotoSansSC-Regular.ttf",
-                                                      LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                      render_mode,
                                                       24,
                                                       LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(font_normal);
     lv_font_t * font_normal_small = lv_freetype_font_create("./src/test_files/fonts/noto/NotoSansSC-Regular.ttf",
-                                                            LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                            render_mode,
                                                             12,
                                                             LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(font_normal_small);
 
+    /* Emoji is only supported in bitmap mode */
     lv_font_t * font_emoji = lv_freetype_font_create("../examples/libs/freetype/NotoColorEmoji-32.subset.ttf",
                                                      LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
                                                      12,
                                                      LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NOT_NULL(font_emoji);
 
-    if(!font_italic || !font_normal || !font_normal_small || !font_emoji) {
-        LV_LOG_ERROR("freetype font create failed.");
-        TEST_FAIL();
-    }
+    lv_font_t * font_path_error = lv_freetype_font_create("ERROR_PATH", render_mode, 24,
+                                                          LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NULL(font_path_error);
+
+    font_path_error = lv_freetype_font_create("", render_mode, 24, LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NULL(font_path_error);
+
+    font_path_error = lv_freetype_font_create(NULL, render_mode, 24, LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NULL(font_path_error);
+
+    lv_font_t * font_size_error = lv_freetype_font_create("./src/test_files/fonts/noto/NotoSansSC-Regular.ttf",
+                                                          render_mode,
+                                                          0,
+                                                          LV_FREETYPE_FONT_STYLE_NORMAL);
+    TEST_ASSERT_NULL(font_size_error);
 
     /*Create style with the new font*/
     static lv_style_t style_italic;
@@ -476,27 +492,45 @@ void test_freetype_bitmap_rendering_test(void)
     lv_label_set_text(label_emoji, "FreeType Emoji test: 😀");
     lv_obj_align_to(label_emoji, label2, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
 
-    TEST_FREETYPE_ASSERT_EQUAL_SCREENSHOT("1");
+    TEST_ASSERT_EQUAL_SCREENSHOT(screenshot_name);
+
+    lv_obj_clean(lv_screen_active());
+    lv_style_reset(&style_italic);
+    lv_style_reset(&style_normal);
+    lv_style_reset(&style_normal_small);
+    lv_style_reset(&style_normal_emoji);
+    lv_freetype_font_delete(font_italic);
+    lv_freetype_font_delete(font_normal);
+    lv_freetype_font_delete(font_normal_small);
+    lv_freetype_font_delete(font_emoji);
 }
 
-void test_freetype_outline_rendering_test(void)
+void test_freetype_render_bitmap(void)
 {
+    test_freetype_with_render_mode(LV_FREETYPE_FONT_RENDER_MODE_BITMAP, "libs/freetype_render_bitmap" EXT_NAME);
+}
+
+void test_freetype_render_outline(void)
+{
+#if LV_USE_DRAW_VG_LITE
+    /* VG-Lite support rendering outline */
+    test_freetype_with_render_mode(LV_FREETYPE_FONT_RENDER_MODE_OUTLINE, "libs/freetype_render_outline.png");
+    LV_UNUSED(outline_data_U9F98);
+    LV_UNUSED(freetype_outline_event_cb);
+#else
+    /* Outline rendering not supported, compare outline data only */
     /*Create a font*/
     lv_font_t * font_italic = lv_freetype_font_create("./src/test_files/fonts/noto/NotoSansSC-Regular.ttf",
                                                       LV_FREETYPE_FONT_RENDER_MODE_OUTLINE,
                                                       24,
                                                       LV_FREETYPE_FONT_STYLE_ITALIC);
 
-    if(!font_italic) {
-        LV_LOG_ERROR("freetype font create failed.");
-        TEST_FAIL();
-    }
+    TEST_ASSERT_NOT_NULL(font_italic);
 
     /*Setup outline event for generating outline drawing data*/
     lv_freetype_outline_add_event(freetype_outline_event_cb, LV_EVENT_ALL, NULL);
 
     lv_font_glyph_dsc_t g;
-
     lv_font_get_glyph_dsc(font_italic, &g, 0x9F98, '\0');
 
     const lv_ll_t * outline_data;
@@ -529,6 +563,7 @@ void test_freetype_outline_rendering_test(void)
     font_italic->release_glyph(font_italic, &g);
 
     lv_freetype_font_delete(font_italic);
+#endif
 }
 
 static void freetype_outline_event_cb(lv_event_t * e)
@@ -589,6 +624,110 @@ static void vegravis_generate_vector_ops_string(lv_freetype_outline_event_param_
 }
 #endif
 
+/**
+ * Test kerning functionality with scalable FreeType fonts.
+ * This test covers the FT_IS_SCALABLE and FT_Set_Pixel_Sizes code path
+ * in freetype_get_glyph_dsc_cb when getting kerning information.
+ */
+void test_freetype_kerning(void)
+{
+    /* Create a font with kerning enabled using font_info */
+    lv_font_info_t font_info;
+    lv_freetype_init_font_info(&font_info);
+    font_info.name = "./src/test_files/fonts/noto/NotoSansSC-Regular.ttf";
+    font_info.size = 32;
+    font_info.render_mode = LV_FREETYPE_FONT_RENDER_MODE_BITMAP;
+    font_info.style = LV_FREETYPE_FONT_STYLE_NORMAL;
+    font_info.kerning = LV_FONT_KERNING_NORMAL;
+
+    lv_font_t * font_kerning = lv_freetype_font_create_with_info(&font_info);
+    TEST_ASSERT_NOT_NULL(font_kerning);
+
+    /* Create a font with kerning disabled */
+    font_info.kerning = LV_FONT_KERNING_NONE;
+    lv_font_t * font_no_kerning = lv_freetype_font_create_with_info(&font_info);
+    TEST_ASSERT_NOT_NULL(font_no_kerning);
+
+    /* Test glyph width with kerning - exercises the FT_Set_Pixel_Sizes code path */
+    uint16_t width_kerning = lv_font_get_glyph_width(font_kerning, 'A', 'V');
+    uint16_t width_no_kerning = lv_font_get_glyph_width(font_no_kerning, 'A', 'V');
+
+    /* Both should return valid widths */
+    TEST_ASSERT_GREATER_THAN(0, width_kerning);
+    TEST_ASSERT_GREATER_THAN(0, width_no_kerning);
+
+    /* Clean up */
+    lv_freetype_font_delete(font_kerning);
+    lv_freetype_font_delete(font_no_kerning);
+}
+
+/**
+ * Test kerning with multiple font sizes to ensure FT_Set_Pixel_Sizes
+ * is called correctly for scalable fonts when kerning is requested.
+ */
+void test_freetype_kerning_scalable_sizes(void)
+{
+    /* Test with multiple sizes to ensure pixel size is set correctly */
+    const uint32_t sizes[] = {16, 24, 32, 48, 64};
+
+    for(int i = 0; i < 5; i++) {
+        lv_font_info_t font_info;
+        lv_freetype_init_font_info(&font_info);
+        font_info.name = "./src/test_files/fonts/noto/NotoSansSC-Regular.ttf";
+        font_info.size = sizes[i];
+        font_info.render_mode = LV_FREETYPE_FONT_RENDER_MODE_BITMAP;
+        font_info.style = LV_FREETYPE_FONT_STYLE_NORMAL;
+        font_info.kerning = LV_FONT_KERNING_NORMAL;
+
+        lv_font_t * font = lv_freetype_font_create_with_info(&font_info);
+        TEST_ASSERT_NOT_NULL(font);
+
+        /* Test getting glyph width which triggers kerning lookup */
+        /* This exercises the FT_IS_SCALABLE and FT_Set_Pixel_Sizes path */
+        uint16_t width_V = lv_font_get_glyph_width(font, 'V', 'A');
+        uint16_t width_A = lv_font_get_glyph_width(font, 'A', 'V');
+        uint16_t width_T = lv_font_get_glyph_width(font, 'T', 'o');
+
+        /* Width should be non-zero for valid glyphs */
+        TEST_ASSERT_GREATER_THAN(0, width_V);
+        TEST_ASSERT_GREATER_THAN(0, width_A);
+        TEST_ASSERT_GREATER_THAN(0, width_T);
+
+        lv_freetype_font_delete(font);
+    }
+}
+
+/**
+ * Test that font with kerning enabled handles gracefully even if
+ * the font has limited kerning data.
+ */
+void test_freetype_no_kerning_info(void)
+{
+    lv_font_info_t font_info;
+    lv_freetype_init_font_info(&font_info);
+    font_info.name = "./src/test_files/fonts/noto/NotoSansSC-Regular.ttf";
+    font_info.size = 24;
+    font_info.render_mode = LV_FREETYPE_FONT_RENDER_MODE_BITMAP;
+    font_info.style = LV_FREETYPE_FONT_STYLE_NORMAL;
+    font_info.kerning = LV_FONT_KERNING_NORMAL;
+
+    lv_font_t * font = lv_freetype_font_create_with_info(&font_info);
+    TEST_ASSERT_NOT_NULL(font);
+
+    /* Test glyph width with various character pairs to exercise kerning lookup */
+    uint16_t width1 = lv_font_get_glyph_width(font, 'A', 'V');
+    uint16_t width2 = lv_font_get_glyph_width(font, 'T', 'o');
+    uint16_t width3 = lv_font_get_glyph_width(font, 'W', 'A');
+
+    /* All widths should be valid (greater than 0) */
+    TEST_ASSERT_GREATER_THAN(0, width1);
+    TEST_ASSERT_GREATER_THAN(0, width2);
+    TEST_ASSERT_GREATER_THAN(0, width3);
+
+    /* Clean up */
+    lv_freetype_font_delete(font);
+}
+
 #else
 
 void setUp(void)
@@ -599,11 +738,23 @@ void tearDown(void)
 {
 }
 
-void test_freetype_bitmap_rendering_test(void)
+void test_freetype_render_bitmap(void)
 {
 }
 
-void test_freetype_outline_rendering_test(void)
+void test_freetype_render_outline(void)
+{
+}
+
+void test_freetype_kerning(void)
+{
+}
+
+void test_freetype_kerning_scalable_sizes(void)
+{
+}
+
+void test_freetype_no_kerning_info(void)
 {
 }
 

@@ -12,7 +12,7 @@
 /*********************
  *      INCLUDES
  *********************/
-#include "lv_os.h"
+#include "lv_os_private.h"
 #if LV_USE_OS == LV_OS_FREERTOS
 
 #include "atomic.h"
@@ -26,9 +26,6 @@
  *********************/
 
 #define ulMAX_COUNT 10U
-#ifndef pcTASK_NAME
-    #define pcTASK_NAME "lvglDraw"
-#endif
 
 #define globals LV_GLOBAL_DEFAULT()
 
@@ -85,7 +82,8 @@ static void prvTestAndDecrement(lv_thread_sync_t * pxCond,
  *   GLOBAL FUNCTIONS
  **********************/
 
-lv_result_t lv_thread_init(lv_thread_t * pxThread, lv_thread_prio_t xSchedPriority,
+lv_result_t lv_thread_init(lv_thread_t * pxThread,  const char * const name,
+                           lv_thread_prio_t xSchedPriority,
                            void (*pvStartRoutine)(void *), size_t usStackSize,
                            void * xAttr)
 {
@@ -94,7 +92,7 @@ lv_result_t lv_thread_init(lv_thread_t * pxThread, lv_thread_prio_t xSchedPriori
 
     BaseType_t xTaskCreateStatus = xTaskCreate(
                                        prvRunThread,
-                                       pcTASK_NAME,
+                                       name,
                                        (configSTACK_DEPTH_TYPE)(usStackSize / sizeof(StackType_t)),
                                        (void *)pxThread,
                                        tskIDLE_PRIORITY + xSchedPriority,
@@ -419,6 +417,11 @@ uint32_t lv_os_get_idle_percent(void)
     globals->freertos_idle_time_sum = 0;
 
     return pct;
+}
+
+void lv_sleep_ms(uint32_t ms)
+{
+    vTaskDelay(ms / portTICK_PERIOD_MS);
 }
 
 /**********************

@@ -83,28 +83,40 @@ void lv_array_deinit(lv_array_t * array);
  * @param array pointer to an `lv_array_t` variable
  * @return the number of elements stored in the array
  */
-uint32_t lv_array_size(const lv_array_t * array);
+static inline uint32_t lv_array_size(const lv_array_t * array)
+{
+    return array->size;
+}
 
 /**
  * Return the capacity of the array, i.e. how many elements can be stored.
  * @param array pointer to an `lv_array_t` variable
  * @return the capacity of the array
  */
-uint32_t lv_array_capacity(const lv_array_t * array);
+static inline uint32_t lv_array_capacity(const lv_array_t * array)
+{
+    return array->capacity;
+}
 
 /**
  * Return if the array is empty
  * @param array pointer to an `lv_array_t` variable
  * @return true: array is empty; false: array is not empty
  */
-bool lv_array_is_empty(const lv_array_t * array);
+static inline bool lv_array_is_empty(const lv_array_t * array)
+{
+    return array->size == 0;
+}
 
 /**
  * Return if the array is full
  * @param array pointer to an `lv_array_t` variable
  * @return true: array is full; false: array is not full
  */
-bool lv_array_is_full(const lv_array_t * array);
+static inline bool lv_array_is_full(const lv_array_t * array)
+{
+    return array->size == array->capacity;
+}
 
 /**
  * Copy an array to another.
@@ -118,7 +130,10 @@ void lv_array_copy(lv_array_t * target, const lv_array_t * source);
  * Remove all elements in array.
  * @param array pointer to an `lv_array_t` variable
  */
-void lv_array_clear(lv_array_t * array);
+static inline void lv_array_clear(lv_array_t * array)
+{
+    array->size = 0;
+}
 
 /**
  * Shrink the memory capacity of array if necessary.
@@ -128,11 +143,25 @@ void lv_array_shrink(lv_array_t * array);
 
 /**
  * Remove the element at the specified position in the array.
+ *
+ * This function keeps the array order. Complexity is O(n)
+ *
  * @param array pointer to an `lv_array_t` variable
  * @param index the index of the element to remove
  * @return LV_RESULT_OK: success, otherwise: error
  */
 lv_result_t lv_array_remove(lv_array_t * array, uint32_t index);
+
+/**
+ * Remove the element at the specified position in the array.
+ *
+ * This function does not guarantee the array order. Complexity is O(1)
+ *
+ * @param array pointer to an `lv_array_t` variable
+ * @param index the index of the element to remove
+ * @return LV_RESULT_OK: success, otherwise: error
+ */
+lv_result_t lv_array_remove_unordered(lv_array_t * array, uint32_t index);
 
 /**
  * Remove from the array either a single element or a range of elements ([start, end)).
@@ -186,13 +215,19 @@ void * lv_array_at(const lv_array_t * array, uint32_t index);
  * @param array pointer to an `lv_array_t` variable
  * @return a pointer to the first element in the array
  */
-void * lv_array_front(const lv_array_t * array);
+static inline void * lv_array_front(const lv_array_t * array)
+{
+    return lv_array_at(array, 0);
+}
 
 /**
  * Returns a pointer to the last element in the array.
  * @param array pointer to an `lv_array_t` variable
  */
-void * lv_array_back(const lv_array_t * array);
+static inline void * lv_array_back(const lv_array_t * array)
+{
+    return lv_array_at(array, lv_array_size(array) - 1);
+}
 
 /**********************
  *      MACROS

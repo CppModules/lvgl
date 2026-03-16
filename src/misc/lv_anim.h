@@ -14,6 +14,7 @@ extern "C" {
  *      INCLUDES
  *********************/
 #include "../lv_conf_internal.h"
+#include "lv_ext_data.h"
 #include "lv_types.h"
 #include "lv_math.h"
 #include "lv_timer.h"
@@ -25,6 +26,7 @@ extern "C" {
 
 #define LV_ANIM_REPEAT_INFINITE      0xFFFFFFFF
 #define LV_ANIM_PLAYTIME_INFINITE    0xFFFFFFFF
+#define LV_ANIM_PAUSE_FOREVER        0xFFFFFFFF
 
 /*
  * Macros used to set cubic-bezier anim parameter.
@@ -121,6 +123,9 @@ typedef struct {
 
 /** Describes an animation*/
 struct _lv_anim_t {
+#if LV_USE_EXT_DATA
+    lv_ext_data_t ext_data;
+#endif
     void * var;                               /**< Variable (Widget or other user-provided object) to animate */
     lv_anim_exec_xcb_t exec_cb;               /**< Function to execute to animate */
     lv_anim_custom_exec_cb_t custom_exec_cb;  /**< Function to execute to animate,
@@ -146,6 +151,9 @@ struct _lv_anim_t {
 
     /* Animation system use these - user shouldn't set */
     uint32_t last_timer_run;
+    uint32_t pause_time;                      /**<The time when the animation was paused*/
+    uint32_t pause_duration;                  /**<The amount of the time the animation must stay paused for*/
+    uint8_t is_paused : 1;                    /**<Indicates that the animation is paused */
     uint8_t reverse_play_in_progress : 1;     /**< Reverse play is in progress */
     uint8_t run_round : 1;                    /**< When not equal to global.anim_state.anim_run_round (which toggles each
                                                * time animation timer executes), indicates this animation needs to be updated. */
@@ -197,6 +205,32 @@ void lv_anim_set_duration(lv_anim_t * a, uint32_t duration);
  * @param delay     delay before the animation in milliseconds
  */
 void lv_anim_set_delay(lv_anim_t * a, uint32_t delay);
+
+/**
+ * Resumes a paused animation
+ * @param a         pointer to an initialized `lv_anim_t` variable
+ */
+void lv_anim_resume(lv_anim_t * a);
+
+/**
+ * Pauses the animation
+ * @param a         pointer to an initialized `lv_anim_t` variable
+ */
+void lv_anim_pause(lv_anim_t * a);
+
+/**
+ * Pauses the animation for ms milliseconds
+ * @param a         pointer to an initialized `lv_anim_t` variable
+ * @param ms        the pause time in milliseconds
+ */
+void lv_anim_pause_for(lv_anim_t * a, uint32_t ms);
+
+/**
+ * Check if the animation is paused
+ * @param a         pointer to an initialized `lv_anim_t` variable
+ * @return          true if the animation is paused else false
+ */
+bool lv_anim_is_paused(lv_anim_t * a);
 
 /**
  * Set the start and end values of an animation
@@ -524,6 +558,25 @@ int32_t lv_anim_path_step(const lv_anim_t * a);
  * @return      the current value to set
  */
 int32_t lv_anim_path_custom_bezier3(const lv_anim_t * a);
+
+#if LV_USE_EXT_DATA
+/**
+ * @brief Associates external user data with an animation instance
+ *
+ * Attaches arbitrary user-defined data to an LVGL animation object along with an optional
+ * destructor callback that will be automatically invoked when the animation completes
+ * or is deleted, enabling proper resource cleanup.
+ *
+ * @param anim       Pointer to the animation object to configure
+ * @param data       User-defined data pointer to associate
+ * @param free_cb    Cleanup callback that receives ext_data when:
+ *                   - Animation completes naturally
+ *                   - Animation is deleted prematurely
+ *                   - New data replaces current association
+ *                   NULL indicates no cleanup required
+ */
+void lv_anim_set_external_data(lv_anim_t * anim, void * data, void (* free_cb)(void * data));
+#endif
 
 /**********************
  *   GLOBAL VARIABLES

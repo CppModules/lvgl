@@ -45,7 +45,7 @@ static void sort_by_file_kind(lv_obj_t * tb, int16_t lo, int16_t hi)
 static void file_explorer_event_handler(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t * obj = lv_event_get_target(e);
+    lv_obj_t * obj = lv_event_get_target_obj(e);
 
     if(code == LV_EVENT_VALUE_CHANGED) {
         const char * cur_path =  lv_file_explorer_get_current_path(obj);
@@ -77,7 +77,7 @@ void lv_example_file_explorer_3(void)
      * The "C:" following that is indeed the Windows/DOS drive letter and is
      * part of the actual path that gets passed to the OS-level functions.
      *
-     * See https://docs.lvgl.io/master/details/main-components/fs.html for details.
+     * See https://docs.lvgl.io/master/main-modules/fs.html for details.
      * File Explorer uses `lv_fs` internally, thus the required prefix in path strings.
      */
     lv_file_explorer_open_dir(file_explorer, "C:C:/");
@@ -94,7 +94,7 @@ void lv_example_file_explorer_3(void)
     /* linux */
     lv_file_explorer_open_dir(file_explorer, "A:/");
 #if LV_FILE_EXPLORER_QUICK_ACCESS
-    char * envvar = "HOME";
+    const char * envvar = "HOME";
     char home_dir[LV_FS_MAX_PATH_LENGTH];
     strcpy(home_dir, "A:");
     /* get the user's home directory from the HOME environment variable*/

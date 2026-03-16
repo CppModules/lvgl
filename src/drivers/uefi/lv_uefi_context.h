@@ -14,7 +14,7 @@ extern "C" {
  *      INCLUDES
  *********************/
 
-#include "../../lvgl.h"
+#include "../../lv_conf_internal.h"
 
 #if LV_USE_UEFI
 
@@ -33,7 +33,7 @@ extern "C" {
  **********************/
 
 /**
- * @brief Initialize the UEFI chache variables.
+ * @brief Initialize the UEFI cache variables.
  * @param image_handle The handle of the current image
  * @param system_table Pointer to the system table
  * @remark This has to be called before lv_init().
@@ -69,3 +69,4 @@ void lv_uefi_platform_deinit(void);
 #endif
 
 #endif //__LV_UEFI_CONTEXT_H__
+

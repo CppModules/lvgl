@@ -22,6 +22,7 @@
 #include "../../stdlib/lv_string.h"
 #include "../../misc/lv_math.h"
 #include "../image/lv_image.h"
+#include "../../core/lv_observer_private.h"
 
 /*********************
  *      DEFINES
@@ -46,12 +47,17 @@ static bool is_slider_horizontal(lv_obj_t * obj);
 static void drag_start(lv_obj_t * obj);
 static void update_knob_pos(lv_obj_t * obj, bool check_drag);
 
+#if LV_USE_OBSERVER
+    static void slider_value_changed_event_cb(lv_event_t * e);
+    static void slider_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
+#endif /*LV_USE_OBSERVER*/
+
 /**********************
  *  STATIC VARIABLES
  **********************/
 
 #if LV_USE_OBJ_PROPERTY
-static const lv_property_ops_t properties[] = {
+static const lv_property_ops_t lv_slider_properties[] = {
     {
         .id = LV_PROPERTY_SLIDER_VALUE,
         .setter = lv_slider_set_value,
@@ -59,7 +65,7 @@ static const lv_property_ops_t properties[] = {
     },
     {
         .id = LV_PROPERTY_SLIDER_LEFT_VALUE,
-        .setter = lv_slider_set_left_value,
+        .setter = lv_slider_set_start_value,
         .getter = lv_slider_get_left_value,
     },
     {
@@ -69,12 +75,12 @@ static const lv_property_ops_t properties[] = {
     },
     {
         .id = LV_PROPERTY_SLIDER_MIN_VALUE,
-        .setter = NULL,
+        .setter = lv_slider_set_min_value,
         .getter = lv_slider_get_min_value,
     },
     {
         .id = LV_PROPERTY_SLIDER_MAX_VALUE,
-        .setter = NULL,
+        .setter = lv_slider_set_max_value,
         .getter = lv_slider_get_max_value,
     },
     {
@@ -102,18 +108,8 @@ const lv_obj_class_t lv_slider_class = {
     .group_def = LV_OBJ_CLASS_GROUP_DEF_TRUE,
     .instance_size = sizeof(lv_slider_t),
     .base_class = &lv_bar_class,
-    .name = "slider",
-#if LV_USE_OBJ_PROPERTY
-    .prop_index_start = LV_PROPERTY_SLIDER_START,
-    .prop_index_end = LV_PROPERTY_SLIDER_END,
-    .properties = properties,
-    .properties_count = sizeof(properties) / sizeof(properties[0]),
-
-#if LV_USE_OBJ_PROPERTY_NAME
-    .property_names = lv_slider_property_names,
-    .names_count = sizeof(lv_slider_property_names) / sizeof(lv_property_name_t),
-#endif
-#endif
+    .name = "lv_slider",
+    LV_PROPERTY_CLASS_FIELDS(slider, SLIDER)
 };
 
 /**********************
@@ -145,7 +141,7 @@ void lv_slider_set_value(lv_obj_t * obj, int32_t value, lv_anim_enable_t anim)
     lv_bar_set_value(obj, value, anim);
 }
 
-void lv_slider_set_left_value(lv_obj_t * obj, int32_t value, lv_anim_enable_t anim)
+void lv_slider_set_start_value(lv_obj_t * obj, int32_t value, lv_anim_enable_t anim)
 {
     lv_bar_set_start_value(obj, value, anim);
 }
@@ -153,6 +149,16 @@ void lv_slider_set_left_value(lv_obj_t * obj, int32_t value, lv_anim_enable_t an
 void lv_slider_set_range(lv_obj_t * obj, int32_t min, int32_t max)
 {
     lv_bar_set_range(obj, min, max);
+}
+
+void lv_slider_set_min_value(lv_obj_t * obj, int32_t min)
+{
+    lv_bar_set_min_value(obj, min);
+}
+
+void lv_slider_set_max_value(lv_obj_t * obj, int32_t min)
+{
+    lv_bar_set_max_value(obj, min);
 }
 
 void lv_slider_set_mode(lv_obj_t * obj, lv_slider_mode_t mode)
@@ -205,6 +211,24 @@ bool lv_slider_is_symmetrical(lv_obj_t * obj)
 {
     return lv_bar_is_symmetrical(obj);
 }
+
+#if LV_USE_OBSERVER
+lv_observer_t * lv_slider_bind_value(lv_obj_t * obj, lv_subject_t * subject)
+{
+    LV_ASSERT_NULL(subject);
+    LV_ASSERT_NULL(obj);
+
+    if(subject->type != LV_SUBJECT_TYPE_INT && subject->type != LV_SUBJECT_TYPE_FLOAT) {
+        LV_LOG_WARN("Incompatible subject type: %d", subject->type);
+        return NULL;
+    }
+
+    lv_obj_add_event_cb(obj, slider_value_changed_event_cb, LV_EVENT_VALUE_CHANGED, subject);
+    lv_observer_t * observer = lv_subject_add_observer_obj(subject, slider_value_observer_cb, obj, NULL);
+    return observer;
+}
+#endif /*LV_USE_OBSERVER*/
+
 
 /**********************
  *   STATIC FUNCTIONS
@@ -338,11 +362,11 @@ static void lv_slider_event(const lv_obj_class_t * class_p, lv_event_t * e)
 
         if(c == LV_KEY_RIGHT || c == LV_KEY_UP) {
             if(!slider->left_knob_focus) lv_slider_set_value(obj, lv_slider_get_value(obj) + 1, LV_ANIM_ON);
-            else lv_slider_set_left_value(obj, lv_slider_get_left_value(obj) + 1, LV_ANIM_ON);
+            else lv_slider_set_start_value(obj, lv_slider_get_left_value(obj) + 1, LV_ANIM_ON);
         }
         else if(c == LV_KEY_LEFT || c == LV_KEY_DOWN) {
             if(!slider->left_knob_focus) lv_slider_set_value(obj, lv_slider_get_value(obj) - 1, LV_ANIM_ON);
-            else lv_slider_set_left_value(obj, lv_slider_get_left_value(obj) - 1, LV_ANIM_ON);
+            else lv_slider_set_start_value(obj, lv_slider_get_left_value(obj) - 1, LV_ANIM_ON);
         }
         else {
             return;
@@ -355,7 +379,7 @@ static void lv_slider_event(const lv_obj_class_t * class_p, lv_event_t * e)
         int32_t r = lv_event_get_rotary_diff(e);
 
         if(!slider->left_knob_focus) lv_slider_set_value(obj, lv_slider_get_value(obj) + r, LV_ANIM_ON);
-        else lv_slider_set_left_value(obj, lv_slider_get_left_value(obj) + 1, LV_ANIM_ON);
+        else lv_slider_set_start_value(obj, lv_slider_get_left_value(obj) + 1, LV_ANIM_ON);
 
         res = lv_obj_send_event(obj, LV_EVENT_VALUE_CHANGED, NULL);
         if(res != LV_RESULT_OK) return;
@@ -393,6 +417,7 @@ static void draw_knob(lv_event_t * e)
     }
     lv_draw_rect_dsc_t knob_rect_dsc;
     lv_draw_rect_dsc_init(&knob_rect_dsc);
+    knob_rect_dsc.base.layer = layer;
     lv_obj_init_draw_rect_dsc(obj, LV_PART_KNOB, &knob_rect_dsc);
     /* Update knob area with knob style */
     position_knob(obj, &knob_area, knob_size, is_horizontal);
@@ -625,5 +650,41 @@ static void update_knob_pos(lv_obj_t * obj, bool check_drag)
             return;
     }
 }
+
+
+#if LV_USE_OBSERVER
+
+static void slider_value_changed_event_cb(lv_event_t * e)
+{
+    lv_obj_t * slider = lv_event_get_current_target(e);
+    lv_subject_t * subject = lv_event_get_user_data(e);
+
+    if(subject->type == LV_SUBJECT_TYPE_INT) {
+        lv_subject_set_int(subject, lv_slider_get_value(slider));
+    }
+#if LV_USE_FLOAT
+    else {
+        lv_subject_set_float(subject, (float)lv_slider_get_value(slider));
+    }
+#endif
+}
+
+static void slider_value_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
+{
+    lv_obj_t * obj = lv_observer_get_target_obj(observer);
+    /*If the slider is not rendered yet show the new state immediately*/
+    lv_anim_enable_t anim_on = obj->rendered ? LV_ANIM_ON : LV_ANIM_OFF;
+    if(subject->type == LV_SUBJECT_TYPE_INT) {
+        lv_slider_set_value(observer->target, subject->value.num, anim_on);
+    }
+#if LV_USE_FLOAT
+    else {
+        lv_slider_set_value(observer->target, (int32_t)subject->value.float_v, anim_on);
+    }
+#endif
+}
+
+#endif /*LV_USE_OBSERVER*/
+
 
 #endif

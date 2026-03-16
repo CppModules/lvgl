@@ -28,12 +28,18 @@ extern "C" {
  **********************/
 
 struct _lv_scale_section_t {
-    lv_style_t * main_style;               /**< Style to use for MAIN part(s) of scale
-                                            *   when it falls within this section's range */
-    lv_style_t * indicator_style;          /**< Style to use for INDICATOR part(s) of scale
-                                            *   when it falls within this section's range */
-    lv_style_t * items_style;              /**< Style to use for ITEMS part(s) of scale
-                                            *   when it falls within this section's range */
+    /** Style to use for MAIN part(s) of scale
+      * when it falls within this section's range */
+    const lv_style_t * main_style;
+
+    /** Style to use for INDICATOR part(s) of scale
+      * when it falls within this section's range */
+    const lv_style_t * indicator_style;
+
+    /** Style to use for ITEMS part(s) of scale
+      * when it falls within this section's range */
+    const lv_style_t * items_style;
+
     int32_t range_min;                     /**< Scale parts with value >= this value will be drawn using applicable style. */
     int32_t range_max;                     /**< Scale parts with value <= this value will be drawn using applicable style. */
     uint32_t first_tick_idx_in_section;    /**< Internal (set during drawing): Tick index of first tick that falls within
@@ -49,6 +55,11 @@ struct _lv_scale_section_t {
     uint32_t last_tick_idx_is_major  : 1;  /**< Internal (set during drawing): true if
                                             * `last_tick_idx_in_section` represents a major tick. */
 };
+typedef struct {
+    lv_obj_t * obj;
+    int32_t value;
+    int32_t length;
+} lv_scale_needle_t;
 
 struct _lv_scale_t {
     lv_obj_t obj;                      /**< Base Widget part of Scale */
@@ -71,6 +82,7 @@ struct _lv_scale_t {
     int32_t custom_label_cnt;          /**< Number of custom labels provided in `txt_src` */
     int32_t last_tick_width;           /**< Width of last tick in pixels */
     int32_t first_tick_width;          /**< Width of first tick in pixels */
+    lv_array_t needles;                /**< Needle list of this scale */
 };
 
 
