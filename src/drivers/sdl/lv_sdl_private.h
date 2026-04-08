@@ -68,6 +68,7 @@ void lv_sdl_keyboard_handler(SDL_Event * event);
 void lv_sdl_mouse_handler(SDL_Event * event);
 void lv_sdl_mousewheel_handler(SDL_Event * event);
 lv_display_t * lv_sdl_get_disp_from_win_id(uint32_t win_id);
+SDL_Window * lv_sdl_window_get_window(lv_display_t * disp);
 
 
 #if LV_SDL_USE_EGL

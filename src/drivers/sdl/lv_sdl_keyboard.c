@@ -10,6 +10,7 @@
 #if LV_USE_SDL
 
 #include "../../core/lv_group.h"
+#include "../../core/lv_obj_event.h"
 #include "../../stdlib/lv_string.h"
 #include "../../misc/lv_text_private.h"
 #include "lv_sdl_private.h"

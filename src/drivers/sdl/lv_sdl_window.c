@@ -85,7 +85,7 @@ static lv_sdl_window_event_callback g_sdl_window_event_callback = NULL;
 lv_display_t *lv_sdl_window_create_base(int32_t hor_res, int32_t ver_res,
                                         void *window_ptr) {
   if (!inited) {
-    auto reCode = SDL_Init(SDL_INIT_VIDEO);
+    int reCode = SDL_Init(SDL_INIT_VIDEO);
     if (reCode !=0) {
       SDL_Log("Failed to init SDL:%s", SDL_GetError());
       return NULL;
@@ -160,7 +160,7 @@ lv_display_t *lv_sdl_window_create(int32_t hor_res, int32_t ver_res) {
 lv_display_t *lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,
                                         void *window) {
   if (!inited) {
-    auto reCode = SDL_Init(SDL_INIT_VIDEO);
+    int reCode = SDL_Init(SDL_INIT_VIDEO);
     if (reCode !=0) {
       SDL_Log("Failed to init SDL:%s", SDL_GetError());
       return NULL;
@@ -172,7 +172,7 @@ lv_display_t *lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,
 
     inited = true;
   }
-  auto rw = SDL_CreateWindowFrom(window);
+  SDL_Window *rw = SDL_CreateWindowFrom(window);
   if (rw == NULL) {
   SDL_Log("Failed to create window from SDL_Window:%s", SDL_GetError());
       return NULL;
@@ -229,6 +229,12 @@ void lv_sdl_quit(void) {
     event_handler_timer = NULL;
     inited = false;
   }
+}
+
+SDL_Window * lv_sdl_window_get_window(lv_display_t *disp) {
+  lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
+  if (!dsc) return NULL;
+  return dsc->window;
 }
 
 /**********************
