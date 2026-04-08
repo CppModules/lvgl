@@ -48,6 +48,7 @@ typedef struct {
   size_t rotated_buf_size;
 #endif
   float zoom;
+  float input_scale; /* 输入坐标缩放因子，默认 1.0 */
   uint8_t ignore_size_chg;
 } lv_sdl_window_t;
 
@@ -197,6 +198,16 @@ void lv_sdl_window_set_zoom(lv_display_t *disp, float zoom) {
 float lv_sdl_window_get_zoom(lv_display_t *disp) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
   return dsc->zoom;
+}
+
+void lv_sdl_window_set_input_scale(lv_display_t *disp, float scale) {
+  lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
+  if (dsc) dsc->input_scale = scale;
+}
+
+float lv_sdl_window_get_input_scale(lv_display_t *disp) {
+  lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
+  return dsc ? dsc->input_scale : 1.0f;
 }
 
 lv_display_t *lv_sdl_get_disp_from_win_id(uint32_t win_id) {
@@ -387,6 +398,7 @@ void lv_sdl_window_set_event_callback(lv_sdl_window_event_callback cb) {
 static void window_create(lv_display_t *disp, SDL_Window *win) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
   dsc->zoom = 1.0;
+  dsc->input_scale = 1.0;
 
   int32_t hor_res = (int32_t)((float)(disp->hor_res) * dsc->zoom);
   int32_t ver_res = (int32_t)((float)(disp->ver_res) * dsc->zoom);
