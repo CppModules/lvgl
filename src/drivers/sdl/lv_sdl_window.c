@@ -85,6 +85,7 @@ static lv_sdl_window_event_callback g_sdl_window_event_callback = NULL;
 lv_display_t *lv_sdl_window_create_base(int32_t hor_res, int32_t ver_res,
                                         void *window_ptr) {
   if (!inited) {
+    SDL_SetHint("SDL_WINDOWS_DPI_AWARENESS", "permonitorv2");
     int reCode = SDL_Init(SDL_INIT_VIDEO);
     if (reCode !=0) {
       SDL_Log("Failed to init SDL:%s", SDL_GetError());
@@ -160,6 +161,7 @@ lv_display_t *lv_sdl_window_create(int32_t hor_res, int32_t ver_res) {
 lv_display_t *lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,
                                         void *window) {
   if (!inited) {
+    SDL_SetHint("SDL_WINDOWS_DPI_AWARENESS", "permonitorv2");
     int reCode = SDL_Init(SDL_INIT_VIDEO);
     if (reCode !=0) {
       SDL_Log("Failed to init SDL:%s", SDL_GetError());
@@ -392,7 +394,7 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
   if (win) {
     dsc->window = win;
   } else {
-    int flag = SDL_WINDOW_RESIZABLE;
+    int flag = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 #if LV_SDL_FULLSCREEN
     flag |= SDL_WINDOW_FULLSCREEN;
 #endif
@@ -406,7 +408,16 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
   dsc->renderer = SDL_CreateRenderer(
       dsc->window, -1,
       LV_SDL_ACCELERATED ? SDL_RENDERER_ACCELERATED : SDL_RENDERER_SOFTWARE);
-  // SDL_SetRenderDrawBlendMode(dsc->renderer, SDL_BLENDMODE_BLEND);
+
+  /* 检测实际 DPI 缩放比，高 DPI 下 renderer 输出像素 > 窗口逻辑像素 */
+  {
+    int render_w = 0, window_w = 0;
+    SDL_GetRendererOutputSize(dsc->renderer, &render_w, NULL);
+    SDL_GetWindowSize(dsc->window, &window_w, NULL);
+    if (window_w > 0 && render_w > window_w) {
+      dsc->zoom = (float)render_w / (float)window_w;
+    }
+  }
 #if LV_USE_DRAW_SDL == 0
   texture_resize(disp);
 
