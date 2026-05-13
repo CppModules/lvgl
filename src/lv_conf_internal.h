@@ -4934,10 +4934,12 @@ LV_EXPORT_CONST_INT(LV_DRAW_BUF_ALIGN);
     #endif
 #endif
 
-#if LV_USE_SDL && LV_USE_OPENGLES && (LV_USE_DRAW_OPENGLES || LV_USE_DRAW_NANOVG)
-    #define LV_SDL_USE_EGL 1
-#else
-    #define LV_SDL_USE_EGL 0
+#ifndef LV_SDL_USE_EGL
+    #if LV_USE_SDL && LV_USE_OPENGLES && (LV_USE_DRAW_OPENGLES || LV_USE_DRAW_NANOVG)
+        #define LV_SDL_USE_EGL 1
+    #else
+        #define LV_SDL_USE_EGL 0
+    #endif
 #endif
 
 #ifndef LV_USE_EGL
