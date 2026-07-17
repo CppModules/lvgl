@@ -136,6 +136,15 @@ uint32_t lv_freetype_outline_get_scale(const lv_font_t * font);
  */
 bool lv_freetype_is_outline_font(const lv_font_t * font);
 
+/**
+ * Set the text render hint mode (0..5, mirroring GDI+ TextRenderingHint).
+ * Called by LVGLEx setRenderQuality(); affects FT_Load_Glyph flags in BITMAP mode.
+ * 0=SystemDefault 1=SingleBitGridFit 2=SingleBit 3=AntiAliasGridFit(default)
+ * 4=AntiAlias 5=ClearTypeGridFit(LCD;LVGL composites as coverage, treated as grayscale).
+ * LVGLEx integration only; end users should call lx::setRenderQuality instead.
+ */
+void lv_freetype_set_text_render_hint(int hint);
+
 /**********************
  *      MACROS
  **********************/
