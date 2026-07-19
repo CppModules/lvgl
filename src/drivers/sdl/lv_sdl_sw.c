@@ -92,6 +92,7 @@ const lv_sdl_backend_ops_t lv_sdl_backend_ops = {
 
 static lv_result_t init_display(lv_display_t * display)
 {
+    lv_display_set_color_format(display, LV_COLOR_FORMAT_ARGB8888);
     lv_sdl_sw_display_data_t * ddata = lv_malloc_zeroed(sizeof(*ddata));
     if(!ddata) {
         LV_LOG_WARN("No memory for display data");
@@ -112,8 +113,9 @@ static lv_result_t init_display(lv_display_t * display)
     resize_display(display);
 
     uint32_t px_size = lv_color_format_get_size(lv_display_get_color_format(display));
-    lv_memset(ddata->fb1, 0xff, hor_res * ver_res * px_size);
-    if(ddata->fb2) lv_memset(ddata->fb2, 0xff, hor_res * ver_res * px_size);
+    uint8_t initial_value = lv_color_format_has_alpha(lv_display_get_color_format(display)) ? 0x00 : 0xff;
+    lv_memset(ddata->fb1, initial_value, hor_res * ver_res * px_size);
+    if(ddata->fb2) lv_memset(ddata->fb2, initial_value, hor_res * ver_res * px_size);
 
     lv_display_set_flush_cb(display, flush_cb);
 
@@ -165,7 +167,8 @@ static lv_result_t resize_display(lv_display_t * display)
 
 #if LV_COLOR_DEPTH == 32 || LV_COLOR_DEPTH == 1
     SDL_PixelFormatEnum px_format =
-        SDL_PIXELFORMAT_RGB888; /*same as SDL_PIXELFORMAT_RGB888, but it's not supported in older versions*/
+        lv_color_format_has_alpha(cf) ? SDL_PIXELFORMAT_ARGB8888
+                                      : SDL_PIXELFORMAT_RGB888;
 #elif LV_COLOR_DEPTH == 24
     SDL_PixelFormatEnum px_format = SDL_PIXELFORMAT_BGR24;
 #elif LV_COLOR_DEPTH == 16
@@ -331,6 +334,12 @@ static lv_result_t window_update(lv_display_t * display)
     uint32_t stride = lv_draw_buf_width_to_stride(display->hor_res, cf);
     SDL_UpdateTexture(ddata->texture, NULL, ddata->fb_act, stride);
 
+    if(lv_color_format_has_alpha(cf)) {
+        SDL_SetRenderDrawColor(ddata->renderer, 0, 0, 0, 0);
+    }
+    else {
+        SDL_SetRenderDrawColor(ddata->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    }
     SDL_RenderClear(ddata->renderer);
 
     /*Update the renderer with the texture containing the rendered image*/

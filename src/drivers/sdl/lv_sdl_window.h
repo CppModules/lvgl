@@ -17,6 +17,8 @@ extern "C" {
 #include "../../display/lv_display.h"
 #include "../../indev/lv_indev.h"
 
+typedef struct SDL_Window SDL_Window;
+
 #if LV_USE_SDL
 
 /*********************
@@ -32,8 +34,13 @@ extern "C" {
  **********************/
 //
 
-// event type is SDL_Event *
+// event type is SDL_Event *; set SDL_USEREVENT to skip default handling
 typedef void(*lv_sdl_window_event_callback)(void* event);
+typedef bool (*lv_sdl_window_present_callback)(lv_display_t * disp,
+                                                struct SDL_Window * window,
+                                                const void * pixels,
+                                                int32_t width, int32_t height,
+                                                lv_color_format_t format);
 
 /**********************
  * GLOBAL PROTOTYPES
@@ -41,6 +48,8 @@ typedef void(*lv_sdl_window_event_callback)(void* event);
 
 lv_display_t * lv_sdl_window_create(int32_t hor_res, int32_t ver_res);
 lv_display_t * lv_sdl_window_create_from(int32_t hor_res, int32_t ver_res,void* window);
+
+SDL_Window * lv_sdl_window_get_window(lv_display_t * disp);
 
 void lv_sdl_window_set_resizeable(lv_display_t * disp, bool value);
 
@@ -59,6 +68,8 @@ void * lv_sdl_window_get_renderer(lv_display_t * disp);
 void lv_sdl_quit(void);
 
 void lv_sdl_window_set_event_callback(lv_sdl_window_event_callback cb);
+
+void lv_sdl_window_set_present_callback(lv_sdl_window_present_callback cb);
 
 /**********************
  *      MACROS

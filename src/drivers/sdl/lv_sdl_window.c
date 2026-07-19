@@ -75,6 +75,7 @@ static void res_chg_event_cb(lv_event_t *e);
 static bool inited = false;
 static lv_timer_t *event_handler_timer;
 static lv_sdl_window_event_callback g_sdl_window_event_callback = NULL;
+static lv_sdl_window_present_callback g_sdl_window_present_callback = NULL;
 /**********************
  *      MACROS
  **********************/
@@ -110,6 +111,7 @@ lv_display_t *lv_sdl_window_create_base(int32_t hor_res, int32_t ver_res,
     lv_free(dsc);
     return NULL;
   }
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_ARGB8888);
   lv_display_add_event_cb(disp, release_disp_cb, LV_EVENT_DELETE, disp);
   lv_display_set_driver_data(disp, dsc);
   window_create(disp, window_ptr);
@@ -250,6 +252,10 @@ SDL_Window * lv_sdl_window_get_window(lv_display_t *disp) {
   return dsc->window;
 }
 
+void lv_sdl_window_set_present_callback(lv_sdl_window_present_callback cb) {
+  g_sdl_window_present_callback = cb;
+}
+
 /**********************
  *   STATIC FUNCTIONS
  **********************/
@@ -350,6 +356,12 @@ static void sdl_event_handler(lv_timer_t *t) {
 #endif
     lv_sdl_keyboard_handler(&event);
 
+    if (g_sdl_window_event_callback) {
+      g_sdl_window_event_callback(&event);
+      if (event.type == SDL_USEREVENT)
+        continue;
+    }
+
     if (event.type == SDL_WINDOWEVENT) {
       lv_display_t *disp = lv_sdl_get_disp_from_win_id(event.window.windowID);
       if (disp == NULL)
@@ -376,9 +388,6 @@ static void sdl_event_handler(lv_timer_t *t) {
       default:
         break;
       }
-    }
-    if (g_sdl_window_event_callback) {
-      g_sdl_window_event_callback(&event);
     }
     if (event.type == SDL_QUIT) {
       SDL_Quit();
@@ -435,9 +444,11 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
 
   uint32_t px_size =
       lv_color_format_get_size(lv_display_get_color_format(disp));
-  lv_memset(dsc->fb1, 0xff, hor_res * ver_res * px_size);
+  uint8_t initial_value =
+      lv_color_format_has_alpha(lv_display_get_color_format(disp)) ? 0x00 : 0xff;
+  lv_memset(dsc->fb1, initial_value, hor_res * ver_res * px_size);
 #if LV_SDL_BUF_COUNT == 2
-  lv_memset(dsc->fb2, 0xff, hor_res * ver_res * px_size);
+  lv_memset(dsc->fb2, initial_value, hor_res * ver_res * px_size);
 #endif
 #endif /*LV_USE_DRAW_SDL == 0*/
   /*Some platforms (e.g. Emscripten) seem to require setting the size again */
@@ -450,6 +461,11 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
 static void window_update(lv_display_t *disp) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
 #if LV_USE_DRAW_SDL == 0
+  if (g_sdl_window_present_callback &&
+      g_sdl_window_present_callback(
+          disp, dsc->window, dsc->fb_act, disp->hor_res, disp->ver_res,
+          lv_display_get_color_format(disp)))
+    return;
   int32_t hor_res = disp->hor_res;
   lv_color_format_t cf = lv_display_get_color_format(disp);
   if (cf == LV_COLOR_FORMAT_I1) {
@@ -458,6 +474,12 @@ static void window_update(lv_display_t *disp) {
   uint32_t stride = lv_draw_buf_width_to_stride(hor_res, cf);
   SDL_UpdateTexture(dsc->texture, NULL, dsc->fb_act, stride);
 
+  if (lv_color_format_has_alpha(cf)) {
+    SDL_SetRenderDrawColor(dsc->renderer, 0, 0, 0, 0);
+  }
+  else {
+    SDL_SetRenderDrawColor(dsc->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+  }
   SDL_RenderClear(dsc->renderer);
 
   /*Update the renderer with the texture containing the rendered image*/
@@ -497,8 +519,8 @@ static void texture_resize(lv_display_t *disp) {
 
 #if LV_COLOR_DEPTH == 32 || LV_COLOR_DEPTH == 1
   SDL_PixelFormatEnum px_format =
-      SDL_PIXELFORMAT_RGB888; /*same as SDL_PIXELFORMAT_RGB888, but it's not
-                                 supported in older versions*/
+      lv_color_format_has_alpha(cf) ? SDL_PIXELFORMAT_ARGB8888
+                                    : SDL_PIXELFORMAT_RGB888;
 #elif LV_COLOR_DEPTH == 24
   SDL_PixelFormatEnum px_format = SDL_PIXELFORMAT_BGR24;
 #elif LV_COLOR_DEPTH == 16
