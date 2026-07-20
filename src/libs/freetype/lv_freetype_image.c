@@ -125,6 +125,39 @@ static void freetype_image_release_cb(const lv_font_t * font, lv_font_glyph_dsc_
  * Cache Callbacks
  *----------------*/
 
+static void lx_downscale_bgra(const FT_Bitmap * src, uint16_t dst_w, uint16_t dst_h,
+                              uint8_t * dst, uint32_t dst_stride)
+{
+    uint32_t sw = src->width;
+    uint32_t sh = src->rows;
+    int32_t spitch = src->pitch;
+    const uint8_t * sb = src->buffer;
+    for(uint32_t dy = 0; dy < dst_h; ++dy) {
+        uint32_t y0 = dy * sh / dst_h;
+        uint32_t y1 = (dy + 1) * sh / dst_h;
+        if(y1 <= y0) y1 = y0 + 1;
+        for(uint32_t dx = 0; dx < dst_w; ++dx) {
+            uint32_t x0 = dx * sw / dst_w;
+            uint32_t x1 = (dx + 1) * sw / dst_w;
+            if(x1 <= x0) x1 = x0 + 1;
+            uint32_t b = 0, g = 0, r = 0, a = 0, cnt = 0;
+            for(uint32_t y = y0; y < y1; ++y) {
+                const uint8_t * row = sb + (int32_t)y * spitch;
+                for(uint32_t x = x0; x < x1; ++x) {
+                    const uint8_t * px = row + x * 4;   /* BGRA */
+                    b += px[0]; g += px[1]; r += px[2]; a += px[3];
+                    cnt++;
+                }
+            }
+            uint8_t * dp = dst + dy * dst_stride + dx * 4;
+            dp[0] = (uint8_t)(b / cnt);
+            dp[1] = (uint8_t)(g / cnt);
+            dp[2] = (uint8_t)(r / cnt);
+            dp[3] = (uint8_t)(a / cnt);
+        }
+    }
+}
+
 static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void * user_data)
 {
     LV_PROFILER_FONT_BEGIN;
@@ -177,6 +210,22 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
     uint16_t box_h = glyph_bitmap->bitmap.rows;         /*Height of the bitmap in [px]*/
     uint16_t box_w = glyph_bitmap->bitmap.width;        /*Width of the bitmap in [px]*/
 
+    uint16_t dst_w = box_w;
+    uint16_t dst_h = box_h;
+    int scale_down = 0;
+    if(!FT_IS_SCALABLE(face) && glyph_bitmap->bitmap.pixel_mode == FT_PIXEL_MODE_BGRA) {
+        FT_Pos ppem = face->size->metrics.x_ppem;
+        if(ppem > 0 && (uint32_t)ppem != dsc->size) {
+            int32_t sz = (int32_t)dsc->size;
+            int32_t p = (int32_t)ppem;
+            dst_w = (box_w * sz + p / 2) / p;
+            dst_h = (box_h * sz + p / 2) / p;
+            if(dst_w < 1) dst_w = 1;
+            if(dst_h < 1) dst_h = 1;
+            scale_down = 1;
+        }
+    }
+
     lv_color_format_t col_format;
     if(glyph_bitmap->bitmap.pixel_mode == FT_PIXEL_MODE_BGRA) {
         col_format = LV_COLOR_FORMAT_ARGB8888;
@@ -184,9 +233,8 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
     else {
         col_format = LV_COLOR_FORMAT_A8;
     }
-    uint32_t pitch = glyph_bitmap->bitmap.pitch;
-    uint32_t stride = lv_draw_buf_width_to_stride(box_w, col_format);
-    data->draw_buf = lv_draw_buf_create_ex(font_draw_buf_handlers, box_w, box_h, col_format, stride);
+    uint32_t stride = lv_draw_buf_width_to_stride(dst_w, col_format);
+    data->draw_buf = lv_draw_buf_create_ex(font_draw_buf_handlers, dst_w, dst_h, col_format, stride);
     if(!data->draw_buf) {
         LV_LOG_WARN("Could not create draw buffer");
         FT_Done_Glyph(glyph);
@@ -195,9 +243,16 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
     }
     lv_draw_buf_clear(data->draw_buf, NULL);
 
-    for(int y = 0; y < box_h; ++y) {
-        lv_memcpy((uint8_t *)(data->draw_buf->data) + y * stride, glyph_bitmap->bitmap.buffer + y * pitch,
-                  pitch);
+    if(scale_down) {
+        lx_downscale_bgra(&glyph_bitmap->bitmap, dst_w, dst_h,
+                          (uint8_t *)data->draw_buf->data, stride);
+    }
+    else {
+        uint32_t pitch = glyph_bitmap->bitmap.pitch;
+        for(int y = 0; y < box_h; ++y) {
+            lv_memcpy((uint8_t *)(data->draw_buf->data) + y * stride, glyph_bitmap->bitmap.buffer + y * pitch,
+                      pitch);
+        }
     }
 
     lv_draw_buf_flush_cache(data->draw_buf, NULL);

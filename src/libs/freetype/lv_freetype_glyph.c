@@ -240,12 +240,31 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
     else if(dsc->render_mode == LV_FREETYPE_FONT_RENDER_MODE_BITMAP) {
         FT_Bitmap * glyph_bitmap = &face->glyph->bitmap;
 
-        dsc_out->adv_w = FT_F26DOT6_TO_INT(glyph->advance.x);        /*Width of the glyph in [pf]*/
-        dsc_out->box_h = glyph_bitmap->rows;                         /*Height of the bitmap in [px]*/
-        dsc_out->box_w = glyph_bitmap->width;                        /*Width of the bitmap in [px]*/
-        dsc_out->ofs_x = glyph->bitmap_left;                         /*X offset of the bitmap in [pf]*/
-        dsc_out->ofs_y = glyph->bitmap_top -
-                         dsc_out->box_h;                             /*Y offset of the bitmap measured from the as line*/
+        int32_t box_w = glyph_bitmap->width;
+        int32_t box_h = glyph_bitmap->rows;
+        int32_t ofs_x = glyph->bitmap_left;
+        int32_t bitmap_top = glyph->bitmap_top;
+        int32_t adv_w = FT_F26DOT6_TO_INT(glyph->advance.x);
+
+        if(!FT_IS_SCALABLE(face)) {
+            FT_Pos ppem = face->size->metrics.x_ppem;
+            if(ppem > 0 && (uint32_t)ppem != dsc->size) {
+                int32_t sz = (int32_t)dsc->size;
+                int32_t p = (int32_t)ppem;
+                box_w = (box_w * sz + p / 2) / p;
+                box_h = (box_h * sz + p / 2) / p;
+                ofs_x = (ofs_x * sz + p / 2) / p;
+                bitmap_top = (bitmap_top * sz + p / 2) / p;
+                adv_w = (adv_w * sz + p / 2) / p;
+            }
+        }
+
+        dsc_out->adv_w = adv_w;                                        /*Width of the glyph in [pf]*/
+        dsc_out->box_h = box_h;                                        /*Height of the bitmap in [px]*/
+        dsc_out->box_w = box_w;                                        /*Width of the bitmap in [px]*/
+        dsc_out->ofs_x = ofs_x;                                        /*X offset of the bitmap in [pf]*/
+        dsc_out->ofs_y = bitmap_top -
+                         box_h;                                        /*Y offset of the bitmap measured from the as line*/
         if(glyph->format == FT_GLYPH_FORMAT_BITMAP)
             dsc_out->format = LV_FONT_GLYPH_FORMAT_IMAGE;
         else
