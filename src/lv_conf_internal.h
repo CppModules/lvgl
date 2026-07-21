@@ -4045,6 +4045,78 @@
     #endif
 #endif
 
+/** Use SDL3 to open window on PC and handle mouse and keyboard. */
+#ifndef LV_USE_SDL3
+    #ifdef CONFIG_LV_USE_SDL3
+        #define LV_USE_SDL3 CONFIG_LV_USE_SDL3
+    #else
+        #define LV_USE_SDL3             0
+    #endif
+#endif
+#if LV_USE_SDL3
+    #ifndef LV_SDL3_INCLUDE_PATH
+        #ifdef CONFIG_LV_SDL3_INCLUDE_PATH
+            #define LV_SDL3_INCLUDE_PATH CONFIG_LV_SDL3_INCLUDE_PATH
+        #else
+            #define LV_SDL3_INCLUDE_PATH    <SDL3/SDL.h>
+        #endif
+    #endif
+    #ifndef LV_SDL3_RENDER_MODE
+        #ifdef CONFIG_LV_SDL3_RENDER_MODE
+            #define LV_SDL3_RENDER_MODE CONFIG_LV_SDL3_RENDER_MODE
+        #else
+            #define LV_SDL3_RENDER_MODE     LV_DISPLAY_RENDER_MODE_DIRECT
+        #endif
+    #endif
+    #ifndef LV_SDL3_BUF_COUNT
+        #ifdef LV_KCONFIG_PRESENT
+            #ifdef CONFIG_LV_SDL3_BUF_COUNT
+                #define LV_SDL3_BUF_COUNT CONFIG_LV_SDL3_BUF_COUNT
+            #else
+                #define LV_SDL3_BUF_COUNT 0
+            #endif
+        #else
+            #define LV_SDL3_BUF_COUNT       1
+        #endif
+    #endif
+    #ifndef LV_SDL3_ACCELERATED
+        #ifdef LV_KCONFIG_PRESENT
+            #ifdef CONFIG_LV_SDL3_ACCELERATED
+                #define LV_SDL3_ACCELERATED CONFIG_LV_SDL3_ACCELERATED
+            #else
+                #define LV_SDL3_ACCELERATED 0
+            #endif
+        #else
+            #define LV_SDL3_ACCELERATED     1
+        #endif
+    #endif
+    #ifndef LV_SDL3_FULLSCREEN
+        #ifdef CONFIG_LV_SDL3_FULLSCREEN
+            #define LV_SDL3_FULLSCREEN CONFIG_LV_SDL3_FULLSCREEN
+        #else
+            #define LV_SDL3_FULLSCREEN      0
+        #endif
+    #endif
+    #ifndef LV_SDL3_DIRECT_EXIT
+        #ifdef LV_KCONFIG_PRESENT
+            #ifdef CONFIG_LV_SDL3_DIRECT_EXIT
+                #define LV_SDL3_DIRECT_EXIT CONFIG_LV_SDL3_DIRECT_EXIT
+            #else
+                #define LV_SDL3_DIRECT_EXIT 0
+            #endif
+        #else
+            #define LV_SDL3_DIRECT_EXIT     1
+        #endif
+    #endif
+    #ifndef LV_SDL3_MOUSEWHEEL_MODE
+        #ifdef CONFIG_LV_SDL3_MOUSEWHEEL_MODE
+            #define LV_SDL3_MOUSEWHEEL_MODE CONFIG_LV_SDL3_MOUSEWHEEL_MODE
+        #else
+            #define LV_SDL3_MOUSEWHEEL_MODE LV_SDL_MOUSEWHEEL_MODE_ENCODER
+        #endif
+    #endif
+#endif
+
 /** Use X11 to open window on Linux desktop and handle mouse and keyboard */
 #ifndef LV_USE_X11
     #ifdef CONFIG_LV_USE_X11

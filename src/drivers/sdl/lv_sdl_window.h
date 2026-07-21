@@ -19,7 +19,7 @@ extern "C" {
 
 typedef struct SDL_Window SDL_Window;
 
-#if LV_USE_SDL
+#if LV_USE_SDL || LV_USE_SDL3
 
 /*********************
  *      DEFINES
