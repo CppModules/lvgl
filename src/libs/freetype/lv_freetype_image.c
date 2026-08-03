@@ -29,6 +29,7 @@
 typedef struct _lv_freetype_image_cache_data_t {
     FT_UInt glyph_index;
     uint32_t size;
+    uint8_t text_render_hint;
 
     lv_draw_buf_t * draw_buf;
 } lv_freetype_image_cache_data_t;
@@ -97,6 +98,7 @@ static const void * freetype_get_glyph_bitmap_cb(lv_font_glyph_dsc_t * g_dsc, lv
     lv_freetype_image_cache_data_t search_key = {
         .glyph_index = glyph_index,
         .size = dsc->size,
+        .text_render_hint = dsc->text_render_hint,
     };
 
     lv_cache_entry_t * entry = lv_cache_acquire_or_create(cache, &search_key, dsc);
@@ -181,21 +183,13 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
         return false;
     }
     error = FT_Load_Glyph(face, data->glyph_index,
-                          FT_LOAD_COLOR | FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL | FT_LOAD_NO_AUTOHINT);
+                          lv_freetype_bitmap_load_flags(data->text_render_hint));
     if(error) {
         FT_ERROR_MSG("FT_Load_Glyph", error);
         lv_mutex_unlock(&dsc->cache_node->face_lock);
         LV_PROFILER_FONT_END;
         return false;
     }
-    error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
-    if(error) {
-        FT_ERROR_MSG("FT_Render_Glyph", error);
-        lv_mutex_unlock(&dsc->cache_node->face_lock);
-        LV_PROFILER_FONT_END;
-        return false;
-    }
-
     FT_Glyph glyph;
     error = FT_Get_Glyph(face->glyph, &glyph);
     if(error) {
@@ -238,6 +232,7 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
     if(!data->draw_buf) {
         LV_LOG_WARN("Could not create draw buffer");
         FT_Done_Glyph(glyph);
+        lv_mutex_unlock(&dsc->cache_node->face_lock);
         LV_PROFILER_FONT_END;
         return false;
     }
@@ -248,10 +243,14 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
                                 (uint8_t *)data->draw_buf->data, stride);
     }
     else {
-        uint32_t pitch = glyph_bitmap->bitmap.pitch;
-        for(int y = 0; y < box_h; ++y) {
-            lv_memcpy((uint8_t *)(data->draw_buf->data) + y * stride, glyph_bitmap->bitmap.buffer + y * pitch,
-                      pitch);
+        int32_t pitch = glyph_bitmap->bitmap.pitch;
+        uint32_t src_stride = (uint32_t)(pitch < 0 ? -pitch : pitch);
+        uint32_t bytes_per_pixel = col_format == LV_COLOR_FORMAT_ARGB8888 ? 4 : 1;
+        uint32_t row_bytes = LV_MIN((uint32_t)box_w * bytes_per_pixel, src_stride);
+        row_bytes = LV_MIN(row_bytes, stride);
+        for(uint32_t y = 0; y < box_h; ++y) {
+            lv_memcpy((uint8_t *)(data->draw_buf->data) + y * stride,
+                      glyph_bitmap->bitmap.buffer + (int32_t)y * pitch, row_bytes);
         }
     }
 
@@ -274,6 +273,9 @@ static lv_cache_compare_res_t freetype_image_compare_cb(const lv_freetype_image_
     }
     if(lhs->size != rhs->size) {
         return lhs->size > rhs->size ? 1 : -1;
+    }
+    if(lhs->text_render_hint != rhs->text_render_hint) {
+        return lhs->text_render_hint > rhs->text_render_hint ? 1 : -1;
     }
     return 0;
 }

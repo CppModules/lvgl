@@ -24,6 +24,7 @@
 typedef struct _lv_freetype_glyph_cache_data_t {
     uint32_t unicode;
     uint32_t size;
+    uint8_t text_render_hint;
 
     lv_font_glyph_dsc_t glyph_dsc;
 } lv_freetype_glyph_cache_data_t;
@@ -60,9 +61,14 @@ void lv_freetype_set_text_render_hint(int hint)
     if(hint >= 0 && hint <= 5) g_text_render_hint = hint;
 }
 
+int lv_freetype_get_text_render_hint(void)
+{
+    return g_text_render_hint;
+}
+
 /* 按 g_text_render_hint 计算 BITMAP 模式的 FT_Load_Glyph flags。
  * 基础 flags:计算度量 + 渲染位图 + 支持彩色字形(emoji)。 */
-static FT_Int32 bitmap_load_flags_for_hint(int hint)
+FT_Int32 lv_freetype_bitmap_load_flags(int hint)
 {
     FT_Int32 base = FT_LOAD_COMPUTE_METRICS | FT_LOAD_COLOR | FT_LOAD_RENDER;
     switch(hint) {
@@ -132,6 +138,7 @@ static bool freetype_get_glyph_dsc_cb(const lv_font_t * font, lv_font_glyph_dsc_
     lv_freetype_glyph_cache_data_t search_key = {
         .unicode = unicode_letter,
         .size = dsc->size,
+        .text_render_hint = dsc->text_render_hint,
     };
 
     lv_cache_t * glyph_cache = dsc->cache_node->glyph_cache;
@@ -209,7 +216,7 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
         error = FT_Load_Glyph(face, glyph_index, FT_LOAD_COMPUTE_METRICS | FT_LOAD_NO_BITMAP | FT_LOAD_NO_AUTOHINT);
     }
     else if(dsc->render_mode == LV_FREETYPE_FONT_RENDER_MODE_BITMAP) {
-        error = FT_Load_Glyph(face, glyph_index, bitmap_load_flags_for_hint(g_text_render_hint));
+        error = FT_Load_Glyph(face, glyph_index, lv_freetype_bitmap_load_flags(data->text_render_hint));
     }
     if(error) {
         FT_ERROR_MSG("FT_Load_Glyph", error);
@@ -265,7 +272,7 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
         dsc_out->ofs_x = ofs_x;                                        /*X offset of the bitmap in [pf]*/
         dsc_out->ofs_y = bitmap_top -
                          box_h;                                        /*Y offset of the bitmap measured from the as line*/
-        if(glyph->format == FT_GLYPH_FORMAT_BITMAP)
+        if(glyph_bitmap->pixel_mode == FT_PIXEL_MODE_BGRA)
             dsc_out->format = LV_FONT_GLYPH_FORMAT_IMAGE;
         else
             dsc_out->format = LV_FONT_GLYPH_FORMAT_A8;
@@ -292,6 +299,9 @@ static lv_cache_compare_res_t freetype_glyph_compare_cb(const lv_freetype_glyph_
     }
     if(lhs->size != rhs->size) {
         return lhs->size > rhs->size ? 1 : -1;
+    }
+    if(lhs->text_render_hint != rhs->text_render_hint) {
+        return lhs->text_render_hint > rhs->text_render_hint ? 1 : -1;
     }
     return 0;
 }

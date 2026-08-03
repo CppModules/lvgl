@@ -180,6 +180,7 @@ lv_font_t * lv_freetype_font_create_with_info(const lv_font_info_t * font_info)
     dsc->render_mode = font_info->render_mode;
     dsc->context = ctx;
     dsc->size = font_info->size;
+    dsc->text_render_hint = (uint8_t)lv_freetype_get_text_render_hint();
     dsc->style = font_info->style;
     dsc->kerning = font_info->kerning;
     dsc->magic_num = LV_FREETYPE_FONT_DSC_MAGIC_NUM;
@@ -196,6 +197,12 @@ lv_font_t * lv_freetype_font_create_with_info(const lv_font_info_t * font_info)
 
     FT_Face face = dsc->cache_node->face;
     FT_Error error;
+    int32_t line_height;
+    int32_t base_line;
+    int32_t underline_position;
+    int8_t underline_thickness;
+
+    lv_mutex_lock(&dsc->cache_node->face_lock);
     if(FT_IS_SCALABLE(face)) {
         error = FT_Set_Pixel_Sizes(face, 0, font_info->size);
     }
@@ -205,8 +212,17 @@ lv_font_t * lv_freetype_font_create_with_info(const lv_font_info_t * font_info)
     }
     if(error) {
         FT_ERROR_MSG("FT_Set_Pixel_Sizes", error);
+        lv_mutex_unlock(&dsc->cache_node->face_lock);
         return NULL;
     }
+
+    line_height = FT_F26DOT6_TO_INT(face->size->metrics.height);
+    base_line = -FT_F26DOT6_TO_INT(face->size->metrics.descender);
+
+    FT_Fixed scale = face->size->metrics.y_scale;
+    underline_thickness = FT_F26DOT6_TO_INT(FT_MulFix(scale, face->underline_thickness));
+    underline_position = FT_F26DOT6_TO_INT(FT_MulFix(scale, face->underline_position));
+    lv_mutex_unlock(&dsc->cache_node->face_lock);
 
     if(dsc->kerning != LV_FONT_KERNING_NONE && !dsc->cache_node->face_has_kerning) {
         LV_LOG_WARN("font: '%s' doesn't have kerning info", pathname);
@@ -215,13 +231,10 @@ lv_font_t * lv_freetype_font_create_with_info(const lv_font_info_t * font_info)
     lv_font_t * font = &dsc->font;
     font->dsc = dsc;
     font->subpx = LV_FONT_SUBPX_NONE;
-    font->line_height = FT_F26DOT6_TO_INT(face->size->metrics.height);
-    font->base_line = -FT_F26DOT6_TO_INT(face->size->metrics.descender);
-
-    FT_Fixed scale = face->size->metrics.y_scale;
-    int8_t thickness = FT_F26DOT6_TO_INT(FT_MulFix(scale, face->underline_thickness));
-    font->underline_position = FT_F26DOT6_TO_INT(FT_MulFix(scale, face->underline_position));
-    font->underline_thickness = thickness < 1 ? 1 : thickness;
+    font->line_height = line_height;
+    font->base_line = base_line;
+    font->underline_position = underline_position;
+    font->underline_thickness = underline_thickness < 1 ? 1 : underline_thickness;
 
     return font;
 }

@@ -115,6 +115,7 @@ typedef struct _lv_freetype_font_dsc_t {
     uint32_t magic_num;
     lv_font_t font;
     uint32_t size;
+    uint8_t text_render_hint;
     lv_freetype_font_style_t style;
     lv_freetype_font_render_mode_t render_mode;
     lv_freetype_context_t * context;
@@ -141,6 +142,8 @@ int32_t lv_freetype_italic_transform_on_pos(lv_point_t point);
 
 lv_cache_t * lv_freetype_create_glyph_cache(uint32_t cache_size);
 void lv_freetype_set_cbs_glyph(lv_freetype_font_dsc_t * dsc);
+int lv_freetype_get_text_render_hint(void);
+FT_Int32 lv_freetype_bitmap_load_flags(int hint);
 
 lv_cache_t * lv_freetype_create_draw_data_image(uint32_t cache_size);
 void lv_freetype_set_cbs_image_font(lv_freetype_font_dsc_t * dsc);
