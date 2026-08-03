@@ -107,12 +107,18 @@ lv_result_t lv_thread_init(
 lv_result_t lv_thread_delete(lv_thread_t * thread)
 {
     lv_result_t result = LV_RESULT_OK;
+    if(!thread || !*thread) {
+        return LV_RESULT_OK;
+    }
 
-    if(!TerminateThread(thread, 0)) {
+    if(WaitForSingleObject(*thread, INFINITE) != WAIT_OBJECT_0) {
         result = LV_RESULT_INVALID;
     }
 
-    CloseHandle(thread);
+    if(!CloseHandle(*thread)) {
+        result = LV_RESULT_INVALID;
+    }
+    *thread = NULL;
 
     return result;
 }
