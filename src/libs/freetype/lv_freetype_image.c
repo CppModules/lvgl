@@ -125,8 +125,8 @@ static void freetype_image_release_cb(const lv_font_t * font, lv_font_glyph_dsc_
  * Cache Callbacks
  *----------------*/
 
-static void lx_downscale_bgra(const FT_Bitmap * src, uint16_t dst_w, uint16_t dst_h,
-                              uint8_t * dst, uint32_t dst_stride)
+static void freetype_downscale_bgra(const FT_Bitmap * src, uint16_t dst_w, uint16_t dst_h,
+                                    uint8_t * dst, uint32_t dst_stride)
 {
     uint32_t sw = src->width;
     uint32_t sh = src->rows;
@@ -244,8 +244,8 @@ static bool freetype_image_create_cb(lv_freetype_image_cache_data_t * data, void
     lv_draw_buf_clear(data->draw_buf, NULL);
 
     if(scale_down) {
-        lx_downscale_bgra(&glyph_bitmap->bitmap, dst_w, dst_h,
-                          (uint8_t *)data->draw_buf->data, stride);
+        freetype_downscale_bgra(&glyph_bitmap->bitmap, dst_w, dst_h,
+                                (uint8_t *)data->draw_buf->data, stride);
     }
     else {
         uint32_t pitch = glyph_bitmap->bitmap.pitch;

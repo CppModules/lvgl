@@ -43,9 +43,9 @@ static lv_cache_compare_res_t freetype_glyph_compare_cb(const lv_freetype_glyph_
  *  STATIC VARIABLES
  **********************/
 
-/* LVGLEx 文本渲染模式(0-5,对标 GDI+ TextRenderingHint),由 lv_freetype_set_text_render_hint 设置。
- * 默认 3 = AntiAliasGridFit(灰度 AA + hinting)。仅 LVGLEx 集成使用。 */
-static int g_lx_text_render_hint = 3;
+/* 文本渲染模式(0-5,对标 GDI+ TextRenderingHint),由 lv_freetype_set_text_render_hint 设置。
+ * 默认 3 = AntiAliasGridFit(灰度 AA + hinting)。 */
+static int g_text_render_hint = 3;
 
 /**********************
  *      MACROS
@@ -57,10 +57,10 @@ static int g_lx_text_render_hint = 3;
 
 void lv_freetype_set_text_render_hint(int hint)
 {
-    if(hint >= 0 && hint <= 5) g_lx_text_render_hint = hint;
+    if(hint >= 0 && hint <= 5) g_text_render_hint = hint;
 }
 
-/* 按 g_lx_text_render_hint 计算 BITMAP 模式的 FT_Load_Glyph flags。
+/* 按 g_text_render_hint 计算 BITMAP 模式的 FT_Load_Glyph flags。
  * 基础 flags:计算度量 + 渲染位图 + 支持彩色字形(emoji)。 */
 static FT_Int32 bitmap_load_flags_for_hint(int hint)
 {
@@ -209,7 +209,7 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
         error = FT_Load_Glyph(face, glyph_index, FT_LOAD_COMPUTE_METRICS | FT_LOAD_NO_BITMAP | FT_LOAD_NO_AUTOHINT);
     }
     else if(dsc->render_mode == LV_FREETYPE_FONT_RENDER_MODE_BITMAP) {
-        error = FT_Load_Glyph(face, glyph_index, bitmap_load_flags_for_hint(g_lx_text_render_hint));
+        error = FT_Load_Glyph(face, glyph_index, bitmap_load_flags_for_hint(g_text_render_hint));
     }
     if(error) {
         FT_ERROR_MSG("FT_Load_Glyph", error);
