@@ -525,6 +525,8 @@ static GLuint link_program(GLuint vertex_shader_id, GLuint fragment_shader_id)
     GL_CALL(program_id = glCreateProgram());
     GL_CALL(glAttachShader(program_id, fragment_shader_id));
     GL_CALL(glAttachShader(program_id, vertex_shader_id));
+    GL_CALL(glBindAttribLocation(program_id, 0, "position"));
+    GL_CALL(glBindAttribLocation(program_id, 1, "texCoord"));
     GL_CALL(glLinkProgram(program_id));
 
     return program_id;
