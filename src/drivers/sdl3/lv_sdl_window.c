@@ -50,6 +50,7 @@ typedef struct {
   float zoom;
   float input_scale; /* 输入坐标缩放因子，默认 1.0 */
   uint8_t ignore_size_chg;
+  uint32_t window_id;
 } lv_sdl_window_t;
 
 /**********************
@@ -187,7 +188,7 @@ void lv_sdl_window_set_zoom(lv_display_t *disp, float zoom) {
 
 float lv_sdl_window_get_zoom(lv_display_t *disp) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
-  return dsc->zoom;
+  return dsc ? dsc->zoom : 1.0f;
 }
 
 void lv_sdl_window_set_input_scale(lv_display_t *disp, float scale) {
@@ -207,7 +208,7 @@ lv_display_t *lv_sdl_get_disp_from_win_id(uint32_t win_id) {
 
   while (disp) {
     lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
-    if (dsc != NULL && SDL_GetWindowID(dsc->window) == win_id) {
+    if (dsc != NULL && dsc->window_id == win_id) {
       return disp;
     }
     disp = lv_display_get_next(disp);
@@ -358,7 +359,8 @@ static void sdl_event_handler(lv_timer_t *t) {
       now a top-level event type. SDL_WINDOWEVENT_* names map via OLD_NAMES.*/
     if (event.type == SDL_WINDOWEVENT_EXPOSED ||
         event.type == SDL_WINDOWEVENT_RESIZED ||
-        event.type == SDL_WINDOWEVENT_CLOSE) {
+        event.type == SDL_WINDOWEVENT_CLOSE ||
+        event.type == SDL_EVENT_WINDOW_DESTROYED) {
       lv_display_t *disp = lv_sdl_get_disp_from_win_id(event.window.windowID);
       if (disp == NULL)
         continue;
@@ -377,6 +379,12 @@ static void sdl_event_handler(lv_timer_t *t) {
         break;
       case SDL_WINDOWEVENT_CLOSE:
         lv_display_delete(disp);
+        break;
+      case SDL_EVENT_WINDOW_DESTROYED:
+        dsc->window = NULL;
+#if LV_USE_DRAW_SDL == 0
+        dsc->texture = NULL;
+#endif
         break;
       default:
         break;
@@ -420,6 +428,7 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
         "LVGL Simulator", hor_res, ver_res,
         flag); /*last param. SDL_WINDOW_BORDERLESS to hide borders*/
   }
+  dsc->window_id = SDL_GetWindowID(dsc->window);
 
   /*SDL3 SDL_CreateRenderer takes a name string instead of index+flags.
     NULL picks the best (accelerated) driver; "software" forces software.*/
@@ -458,6 +467,9 @@ static void window_create(lv_display_t *disp, SDL_Window *win) {
 
 static void window_update(lv_display_t *disp) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
+  if (!dsc->window) {
+    return;
+  }
 #if LV_USE_DRAW_SDL == 0
   if (g_sdl_window_present_callback &&
       g_sdl_window_present_callback(
@@ -586,10 +598,12 @@ static void release_disp_cb(lv_event_t *e) {
 
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
 #if LV_USE_DRAW_SDL == 0
-  SDL_DestroyTexture(dsc->texture);
+  if (dsc->texture)
+    SDL_DestroyTexture(dsc->texture);
 #endif
   SDL_DestroyRenderer(dsc->renderer);
-  SDL_DestroyWindow(dsc->window);
+  if (dsc->window)
+    SDL_DestroyWindow(dsc->window);
 #if LV_USE_DRAW_SDL == 0
   if (dsc->fb1)
     sdl_draw_buf_free(dsc->fb1);

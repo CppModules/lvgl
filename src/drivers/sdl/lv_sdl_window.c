@@ -199,7 +199,7 @@ void lv_sdl_window_set_zoom(lv_display_t *disp, float zoom) {
 
 float lv_sdl_window_get_zoom(lv_display_t *disp) {
   lv_sdl_window_t *dsc = lv_display_get_driver_data(disp);
-  return dsc->zoom;
+  return dsc ? dsc->zoom : 1.0f;
 }
 
 void lv_sdl_window_set_input_scale(lv_display_t *disp, float scale) {
