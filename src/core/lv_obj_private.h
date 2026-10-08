@@ -92,6 +92,8 @@ struct _lv_obj_t {
  * GLOBAL PROTOTYPES
  **********************/
 
+lv_result_t lv_obj_invalidate_with_scroll(const lv_obj_t * obj, const lv_point_t * scroll_delta);
+
 /**********************
  *      MACROS
  **********************/

@@ -426,7 +426,8 @@ lv_result_t lv_obj_scroll_by_raw(lv_obj_t * obj, int32_t x, int32_t y)
     lv_obj_move_children_by(obj, x, y, true);
     lv_result_t res = lv_obj_send_event(obj, LV_EVENT_SCROLL, NULL);
     if(res != LV_RESULT_OK) return res;
-    lv_obj_invalidate(obj);
+    const lv_point_t delta = {x, y};
+    lv_obj_invalidate_with_scroll(obj, &delta);
     return LV_RESULT_OK;
 }
 

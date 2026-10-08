@@ -35,9 +35,10 @@ static int32_t calc_content_height(lv_obj_t * obj);
 static void layout_update_core(lv_obj_t * obj);
 static void transform_point_array(const lv_obj_t * obj, lv_point_t * p, size_t p_count, bool inv);
 static bool is_transformed(const lv_obj_t * obj);
-static lv_result_t invalidate_area_core(const lv_obj_t * obj, lv_area_t * area_tmp);
+static lv_result_t invalidate_area_core(const lv_obj_t * obj, lv_area_t * area_tmp,
+                                        const lv_point_t * scroll_delta);
 static lv_result_t obj_invalidate_area_internal(const lv_display_t * disp, const lv_obj_t * obj,
-                                                const lv_area_t * area);
+                                                const lv_area_t * area, const lv_point_t * scroll_delta);
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -1064,7 +1065,7 @@ static lv_obj_tree_walk_res_t blur_walk_cb(lv_obj_t * obj, void * user_data)
             obj_coords.x2 += ext_size;
             obj_coords.y2 += ext_size;
 
-            invalidate_area_core(obj, &obj_coords);
+            invalidate_area_core(obj, &obj_coords, NULL);
 
             /*No need to check the children as the widget is already invalidated
              *which will redraw the children too*/
@@ -1088,11 +1089,16 @@ lv_result_t lv_obj_invalidate_area(const lv_obj_t * obj, const lv_area_t * area)
     lv_display_t * disp   = lv_obj_get_display(obj);
     if(!lv_display_is_invalidation_enabled(disp)) return LV_RESULT_INVALID;
 
-    return obj_invalidate_area_internal(disp, obj, area);
+    return obj_invalidate_area_internal(disp, obj, area, NULL);
 }
 
 
 lv_result_t lv_obj_invalidate(const lv_obj_t * obj)
+{
+    return lv_obj_invalidate_with_scroll(obj, NULL);
+}
+
+lv_result_t lv_obj_invalidate_with_scroll(const lv_obj_t * obj, const lv_point_t * scroll_delta)
 {
     LV_ASSERT_OBJ(obj, MY_CLASS);
 
@@ -1108,7 +1114,7 @@ lv_result_t lv_obj_invalidate(const lv_obj_t * obj)
     obj_coords.x2 += ext_size;
     obj_coords.y2 += ext_size;
 
-    lv_result_t res = obj_invalidate_area_internal(disp, obj, &obj_coords);
+    lv_result_t res = obj_invalidate_area_internal(disp, obj, &obj_coords, scroll_delta);
 
     return res;
 }
@@ -1316,7 +1322,7 @@ const lv_matrix_t * lv_obj_get_transform(const lv_obj_t * obj)
  **********************/
 
 static lv_result_t obj_invalidate_area_internal(const lv_display_t * disp, const lv_obj_t * obj,
-                                                const lv_area_t * area)
+                                                const lv_area_t * area, const lv_point_t * scroll_delta)
 {
     LV_ASSERT_NULL(disp);
     LV_ASSERT_NULL(obj);
@@ -1325,7 +1331,7 @@ static lv_result_t obj_invalidate_area_internal(const lv_display_t * disp, const
     lv_area_t area_tmp;
     lv_area_copy(&area_tmp, area);
 
-    lv_result_t res = invalidate_area_core(obj, &area_tmp);
+    lv_result_t res = invalidate_area_core(obj, &area_tmp, scroll_delta);
     if(res == LV_RESULT_INVALID) return res;
 
     /*If this area is on a blurred widget, invalidate that widget too*/
@@ -1612,7 +1618,8 @@ static void transform_point_array(const lv_obj_t * obj, lv_point_t * p, size_t p
     lv_point_array_transform(p, p_count, angle, scale_x, scale_y, &pivot, !inv);
 }
 
-static lv_result_t invalidate_area_core(const lv_obj_t * obj, lv_area_t * area_tmp)
+static lv_result_t invalidate_area_core(const lv_obj_t * obj, lv_area_t * area_tmp,
+                                        const lv_point_t * scroll_delta)
 {
     if(!lv_obj_area_is_visible(obj, area_tmp)) return LV_RESULT_INVALID;
 #if LV_DRAW_TRANSFORM_USE_MATRIX
@@ -1629,6 +1636,6 @@ static lv_result_t invalidate_area_core(const lv_obj_t * obj, lv_area_t * area_t
     }
 #endif
 
-    lv_result_t res = lv_inv_area_from_obj(lv_obj_get_display(obj), area_tmp, obj);
+    lv_result_t res = lv_inv_area_from_obj_with_scroll(lv_obj_get_display(obj), area_tmp, obj, scroll_delta);
     return res;
 }

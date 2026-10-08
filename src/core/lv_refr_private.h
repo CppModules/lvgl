@@ -47,6 +47,8 @@ void lv_refr_deinit(void);
  */
 lv_result_t lv_inv_area(lv_display_t * disp, const lv_area_t * area_p);
 lv_result_t lv_inv_area_from_obj(lv_display_t * disp, const lv_area_t * area_p, const lv_obj_t * source);
+lv_result_t lv_inv_area_from_obj_with_scroll(lv_display_t * disp, const lv_area_t * area_p,
+                                           const lv_obj_t * source, const lv_point_t * scroll_delta);
 
 /**
  * Get the display which is being refreshed

@@ -273,6 +273,12 @@ lv_result_t lv_inv_area(lv_display_t * disp, const lv_area_t * area_p)
 
 lv_result_t lv_inv_area_from_obj(lv_display_t * disp, const lv_area_t * area_p, const lv_obj_t * source)
 {
+    return lv_inv_area_from_obj_with_scroll(disp, area_p, source, NULL);
+}
+
+lv_result_t lv_inv_area_from_obj_with_scroll(lv_display_t * disp, const lv_area_t * area_p,
+                                           const lv_obj_t * source, const lv_point_t * scroll_delta)
+{
     if(!disp) disp = lv_display_get_default();
     if(!disp) return LV_RESULT_INVALID;
     if(!lv_display_is_invalidation_enabled(disp)) return LV_RESULT_INVALID;
@@ -324,10 +330,13 @@ lv_result_t lv_inv_area_from_obj(lv_display_t * disp, const lv_area_t * area_p, 
     }
 
     const lv_obj_t * previous_source = disp->inv_source;
+    const lv_point_t previous_delta = disp->inv_scroll_delta;
     disp->inv_source = source;
+    disp->inv_scroll_delta = scroll_delta ? *scroll_delta : (lv_point_t) {0, 0};
     lv_result_t res = lv_display_send_event(disp, LV_EVENT_INVALIDATE_AREA, &com_area);
     if(res != LV_RESULT_OK) return LV_RESULT_INVALID;
     disp->inv_source = previous_source;
+    disp->inv_scroll_delta = previous_delta;
 
     /*Save only if this area is not in one of the saved areas*/
     uint16_t i;

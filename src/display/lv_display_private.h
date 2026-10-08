@@ -110,6 +110,7 @@ struct _lv_display_t {
     uint32_t inv_p;
     int32_t inv_en_cnt;
     const lv_obj_t * inv_source;
+    lv_point_t inv_scroll_delta;
 
     /** Double buffer sync areas (redrawn during last refresh) */
     lv_ll_t sync_areas;
