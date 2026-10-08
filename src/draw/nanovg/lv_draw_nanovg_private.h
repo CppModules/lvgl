@@ -79,11 +79,25 @@ typedef struct _lv_draw_nanovg_unit_t {
     struct _lv_pending_t * letter_pending;
 
     lv_cache_t * fbo_cache;
+    bool failed;
+    uint64_t upload_bytes;
+    int (*layer_image)(lv_layer_t * layer);
 } lv_draw_nanovg_unit_t;
 
 /**********************
  * GLOBAL PROTOTYPES
  **********************/
+
+lv_draw_nanovg_unit_t * lv_draw_nanovg_get_unit(void);
+void lv_draw_nanovg_release(void);
+void lv_draw_nanovg_abandon(void);
+void lv_draw_nanovg_invalidate_fonts(void);
+void lv_draw_nanovg_execute(lv_draw_nanovg_unit_t * u, lv_draw_task_t * t);
+struct NVGLUframebuffer * lv_nanovg_framebuffer_create(lv_draw_nanovg_unit_t * u, int w, int h);
+void lv_nanovg_framebuffer_delete(struct NVGLUframebuffer * fb);
+unsigned int lv_nanovg_framebuffer_texture(struct NVGLUframebuffer * fb);
+unsigned int lv_nanovg_framebuffer_id(struct NVGLUframebuffer * fb);
+int lv_nanovg_import_texture(lv_draw_nanovg_unit_t * u, unsigned int texture, int w, int h, int flags);
 
 #if LV_USE_3DTEXTURE
 /**

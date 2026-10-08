@@ -114,6 +114,7 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
     lv_image_decoder_dsc_t decoder_dsc;
     lv_result_t res = lv_image_decoder_open(&decoder_dsc, src, &args);
     if(res != LV_RESULT_OK) {
+        u->failed = true;
         lv_image_src_t type = lv_image_src_get_type(src);
         LV_UNUSED(type);
         LV_LOG_WARN("Failed to open image: type: %d, src: %p (%s)", type, src,
@@ -124,6 +125,7 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
 
     const lv_draw_buf_t * decoded = decoder_dsc.decoded;
     if(decoded == NULL || decoded->data == NULL) {
+        u->failed = true;
         lv_image_decoder_close(&decoder_dsc);
         LV_LOG_ERROR("image data is NULL");
         LV_PROFILER_DRAW_END;
@@ -142,17 +144,27 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
     search_key.src = src;
     search_key.src_type = lv_image_src_get_type(src);
 
+    if(decoded->header.flags & LV_IMAGE_FLAGS_MODIFIABLE) {
+        bool started = u->is_started;
+        lv_nanovg_end_frame(u);
+        u->is_started = started;
+        lv_cache_drop(u->image_cache, &search_key, NULL);
+    }
+
     lv_cache_entry_t * cache_node_entry = lv_cache_acquire(u->image_cache, &search_key, NULL);
     if(cache_node_entry == NULL) {
         /* check if the cache is full */
         size_t free_size = lv_cache_get_free_size(u->image_cache, NULL);
         if(free_size == 0) {
             LV_LOG_INFO("image cache is full, release all pending cache entries");
+            bool started = u->is_started;
             lv_nanovg_end_frame(u);
+            u->is_started = started;
         }
 
         cache_node_entry = lv_cache_acquire_or_create(u->image_cache, &search_key, NULL);
         if(cache_node_entry == NULL) {
+            u->failed = true;
             LV_LOG_ERROR("image cache creating failed");
             lv_image_decoder_close(&decoder_dsc);
             LV_PROFILER_DRAW_END;
@@ -160,12 +172,11 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
         }
     }
 
-    lv_image_decoder_close(&decoder_dsc);
-
     /* Add the new entry to the pending list */
     lv_pending_add(u->image_pending, &cache_node_entry);
 
     image_item_t * image_item = lv_cache_entry_get_data(cache_node_entry);
+    lv_image_decoder_close(&decoder_dsc);
 
     LV_PROFILER_DRAW_END;
     return image_item->image_handle;
@@ -278,7 +289,8 @@ static bool image_create_cb(image_item_t * item, void * user_data)
     int image_handle = nvgCreateImage(item->u->vg, w, h, flags, nvg_tex_type, data);
     LV_PROFILER_DRAW_END_TAG("nvgCreateImage");
 
-    if(image_handle < 0) {
+    if(image_handle <= 0) {
+        item->u->failed = true;
         return false;
     }
 
@@ -288,6 +300,7 @@ static bool image_create_cb(image_item_t * item, void * user_data)
     }
 
     item->image_handle = image_handle;
+    item->u->upload_bytes += (uint64_t)tight_stride * h;
     return true;
 }
 
@@ -343,7 +356,7 @@ static void image_cache_drop_collect_cb(void * elem)
     LV_ASSERT_NULL(src);
     lv_image_src_t src_type = lv_image_src_get_type(src);
 
-    if((src_type == LV_IMAGE_SRC_FILE && lv_strcmp(item->src, src) == 0)
+    if((src_type == LV_IMAGE_SRC_FILE && item->src_type == LV_IMAGE_SRC_FILE && lv_strcmp(item->src, src) == 0)
        || (src_type == LV_IMAGE_SRC_VARIABLE && item->src == src)) {
         image_item_t * drop_item = lv_ll_ins_tail(&item->u->image_drop_ll);
         LV_ASSERT_MALLOC(drop_item);

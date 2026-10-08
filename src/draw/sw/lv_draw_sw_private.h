@@ -62,6 +62,8 @@ typedef struct {
  * GLOBAL PROTOTYPES
  **********************/
 
+void lv_draw_sw_execute(lv_draw_task_t * task);
+
 /**********************
  *      MACROS
  **********************/

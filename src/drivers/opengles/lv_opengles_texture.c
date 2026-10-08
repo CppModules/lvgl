@@ -212,7 +212,9 @@ static lv_display_t * lv_opengles_texture_create_common(int32_t w, int32_t h)
     lv_display_set_driver_data(disp, texture);
     lv_display_add_event_cb(disp, release_disp_cb, LV_EVENT_DELETE, disp);
 
+#if !HIYUI_GPU_COMPOSITION
     lv_opengles_init();
+#endif
     return disp;
 }
 

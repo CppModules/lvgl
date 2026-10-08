@@ -12,6 +12,9 @@
 
 #include "../../misc/lv_fs_private.h"
 #include "../../core/lv_global.h"
+#if HIYUI_GPU_COMPOSITION && LV_USE_DRAW_NANOVG
+#include "../../draw/nanovg/lv_draw_nanovg_private.h"
+#endif
 
 /*********************
  *      DEFINES
@@ -261,6 +264,9 @@ void lv_freetype_font_delete(lv_font_t * font)
     }
     lv_freetype_font_dsc_t * dsc = (lv_freetype_font_dsc_t *)(font->dsc);
     LV_ASSERT_FREETYPE_FONT_DSC(dsc);
+#if HIYUI_GPU_COMPOSITION && LV_USE_DRAW_NANOVG
+    lv_draw_nanovg_invalidate_fonts();
+#endif
 
     lv_cache_release(ctx->cache_node_cache, dsc->cache_node_entry, NULL);
     if(lv_cache_entry_get_ref(dsc->cache_node_entry) == 0) {

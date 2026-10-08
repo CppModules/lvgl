@@ -535,7 +535,11 @@ void lv_obj_refr(lv_layer_t * layer, lv_obj_t * obj)
     }
 #if LV_DRAW_TRANSFORM_USE_MATRIX
     /*If the layer opa is full then use the matrix transform*/
-    else if(opa_layered >= LV_OPA_MAX && !refr_check_obj_clip_overflow(layer, obj)) {
+    else if(
+#if HIYUI_GPU_COMPOSITION
+        layer->gpu_target &&
+#endif
+        opa_layered >= LV_OPA_MAX && !refr_check_obj_clip_overflow(layer, obj)) {
         refr_obj_matrix(layer, obj);
     }
 #endif /* LV_DRAW_TRANSFORM_USE_MATRIX */
@@ -1053,7 +1057,7 @@ static void refr_configured_layer(lv_layer_t * layer)
         wait_for_flushing(disp_refr);
     }
     /*If the screen is transparent initialize it when the flushing is ready*/
-    if(lv_color_format_has_alpha(disp_refr->color_format)) {
+    if(!layer->gpu_target && lv_color_format_has_alpha(disp_refr->color_format)) {
         lv_area_t clear_area = layer->_clip_area;
         lv_area_move(&clear_area, -layer->buf_area.x1, -layer->buf_area.y1);
         lv_draw_buf_clear(layer->draw_buf, &clear_area);

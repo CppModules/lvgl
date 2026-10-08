@@ -50,7 +50,7 @@
     static void render_thread_cb(void * ptr);
 #endif
 
-static void execute_drawing(lv_draw_task_t * t);
+void lv_draw_sw_execute(lv_draw_task_t * t);
 
 static int32_t dispatch(lv_draw_unit_t * draw_unit, lv_layer_t * layer);
 static int32_t evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * task);
@@ -329,7 +329,7 @@ static int32_t dispatch(lv_draw_unit_t * draw_unit, lv_layer_t * layer)
     t->state = LV_DRAW_TASK_STATE_IN_PROGRESS;
     draw_sw_unit->task_act = t;
 
-    execute_drawing(t);
+    lv_draw_sw_execute(t);
     draw_sw_unit->task_act->state = LV_DRAW_TASK_STATE_FINISHED;
     draw_sw_unit->task_act = NULL;
 
@@ -363,7 +363,7 @@ static void render_thread_cb(void * ptr)
             break;
         }
 
-        execute_drawing(thread_dsc->task_act);
+        lv_draw_sw_execute(thread_dsc->task_act);
 #if LV_USE_PARALLEL_DRAW_DEBUG
         parallel_debug_draw(thread_dsc->task_act, thread_dsc->idx);
 #endif
@@ -381,7 +381,7 @@ static void render_thread_cb(void * ptr)
 }
 #endif
 
-static void execute_drawing(lv_draw_task_t * t)
+void lv_draw_sw_execute(lv_draw_task_t * t)
 {
     LV_PROFILER_DRAW_BEGIN;
     /*Render the draw task*/

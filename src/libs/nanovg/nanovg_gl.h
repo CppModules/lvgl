@@ -36,6 +36,7 @@ enum NVGcreateFlags {
     NVG_STENCIL_STROKES = 1 << 1,
     // Flag indicating that additional debug checks are done.
     NVG_DEBUG           = 1 << 2,
+    NVG_PRESERVE_SCISSOR = 1 << 3,
 };
 
 #if defined NANOVG_GL2_IMPLEMENTATION
@@ -1337,7 +1338,7 @@ static void glnvg__renderFlush(void * uptr)
         glFrontFace(GL_CCW);
         glEnable(GL_BLEND);
         glDisable(GL_DEPTH_TEST);
-        glDisable(GL_SCISSOR_TEST);
+        if(!(gl->flags & NVG_PRESERVE_SCISSOR)) glDisable(GL_SCISSOR_TEST);
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         glStencilMask(0xffffffff);
         glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);

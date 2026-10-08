@@ -71,7 +71,7 @@ void lv_draw_nanovg_image(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc, c
     bool use_repeat_tile = false;
 
     if(image_handle < 0) {
-        int image_flags = 0;
+        int image_flags = dsc->antialias ? 0 : NVG_IMAGE_NEAREST;
 
         if(dsc->tile) {
 #ifdef NANOVG_GLES2_IMPLEMENTATION

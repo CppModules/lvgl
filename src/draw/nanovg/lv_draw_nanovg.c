@@ -18,7 +18,9 @@
 #include "lv_nanovg_image_cache.h"
 #include "lv_nanovg_fbo_cache.h"
 
-#if LV_USE_OPENGLES && LV_USE_EGL
+#ifdef LV_NANOVG_GL_INCLUDE
+    #include LV_NANOVG_GL_INCLUDE
+#elif LV_USE_OPENGLES
     #include "../../drivers/opengles/lv_opengles_private.h"
 #else
     #define NANOVG_GL_STATIC_LINK
@@ -87,6 +89,8 @@ static void draw_event_cb(lv_event_t * e);
  *  STATIC VARIABLES
  **********************/
 
+static lv_draw_nanovg_unit_t * active_unit;
+
 /**********************
  *      MACROS
  **********************/
@@ -97,19 +101,31 @@ static void draw_event_cb(lv_event_t * e);
 
 void lv_draw_nanovg_init(void)
 {
-    static bool initialized = false;
-    if(initialized) return;
-    initialized = true;
+    if(active_unit && active_unit->vg) return;
 
-    lv_draw_nanovg_unit_t * unit = lv_draw_create_unit(sizeof(lv_draw_nanovg_unit_t));
+    int flags = NVG_ANTIALIAS | NVG_STENCIL_STROKES;
+#if HIYUI_GPU_COMPOSITION
+    flags |= NVG_PRESERVE_SCISSOR;
+#endif
+    NVGcontext * vg = NVG_CTX_CREATE(flags);
+    if(!vg) return;
+
+    lv_draw_nanovg_unit_t * unit = active_unit;
+    if(!unit) unit = lv_draw_create_unit(sizeof(lv_draw_nanovg_unit_t));
+    if(!unit) {
+        NVG_CTX_DELETE(vg);
+        return;
+    }
+    active_unit = unit;
     unit->base_unit.dispatch_cb = draw_dispatch;
     unit->base_unit.evaluate_cb = draw_evaluate;
     unit->base_unit.delete_cb = draw_delete;
     unit->base_unit.event_cb = draw_event_cb;
     unit->base_unit.name = "NANOVG";
 
-    unit->vg = NVG_CTX_CREATE(0);
-    LV_ASSERT_MSG(unit->vg != NULL, "NanoVG init failed");
+    unit->vg = vg;
+    unit->failed = false;
+    unit->layer_image = NULL;
 
     lv_nanovg_utils_init(unit);
     lv_nanovg_image_cache_init(unit);
@@ -127,7 +143,7 @@ int lv_nanovg_fb_get_image_handle(struct NVGLUframebuffer * fb)
  *   STATIC FUNCTIONS
  **********************/
 
-static void draw_execute(lv_draw_nanovg_unit_t * u, lv_draw_task_t * t)
+void lv_draw_nanovg_execute(lv_draw_nanovg_unit_t * u, lv_draw_task_t * t)
 {
     /* remember draw unit for access to unit's context */
     t->draw_unit = (lv_draw_unit_t *)u;
@@ -145,7 +161,7 @@ static void draw_execute(lv_draw_nanovg_unit_t * u, lv_draw_task_t * t)
 #endif
 
     /* NanoVG will output premultiplied image, set the flag correspondingly. */
-    if(layer->draw_buf) {
+    if(layer->draw_buf && !layer->gpu_target) {
         lv_draw_buf_set_flag(layer->draw_buf, LV_IMAGE_FLAGS_PREMULTIPLIED);
     }
 
@@ -184,7 +200,7 @@ static void draw_execute(lv_draw_nanovg_unit_t * u, lv_draw_task_t * t)
             break;
 
         case LV_DRAW_TASK_TYPE_LINE:
-            lv_draw_nanovg_line(t, t->draw_dsc);
+            lv_draw_line_iterate(t, t->draw_dsc, lv_draw_nanovg_line);
             break;
 
         case LV_DRAW_TASK_TYPE_ARC:
@@ -359,7 +375,7 @@ static int32_t draw_dispatch(lv_draw_unit_t * draw_unit, lv_layer_t * layer)
 
     t->state = LV_DRAW_TASK_STATE_IN_PROGRESS;
 
-    draw_execute(u, t);
+    lv_draw_nanovg_execute(u, t);
 
     t->state = LV_DRAW_TASK_STATE_FINISHED;
 
@@ -410,13 +426,92 @@ static int32_t draw_evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * task)
 static int32_t draw_delete(lv_draw_unit_t * draw_unit)
 {
     lv_draw_nanovg_unit_t * unit = (lv_draw_nanovg_unit_t *)draw_unit;
+    if(active_unit == unit) active_unit = NULL;
+    if(!unit->vg) return 0;
+    lv_nanovg_end_frame(unit);
     lv_draw_nanovg_label_deinit(unit);
     lv_nanovg_fbo_cache_deinit(unit);
     lv_nanovg_image_cache_deinit(unit);
     lv_nanovg_utils_deinit(unit);
     NVG_CTX_DELETE(unit->vg);
     unit->vg = NULL;
+    unit->current_layer = NULL;
     return 0;
+}
+
+lv_draw_nanovg_unit_t * lv_draw_nanovg_get_unit(void)
+{
+    return active_unit && active_unit->vg ? active_unit : NULL;
+}
+
+void lv_draw_nanovg_release(void)
+{
+    lv_draw_nanovg_unit_t * unit = active_unit;
+    if(!unit) return;
+    draw_delete(&unit->base_unit);
+    active_unit = unit;
+}
+
+void lv_draw_nanovg_abandon(void)
+{
+    if(!active_unit || !active_unit->vg) return;
+    GLNVGcontext * gl = nvgInternalParams(active_unit->vg)->userPtr;
+    lv_memzero(gl->shaders, sizeof(gl->shaders));
+    lv_memzero(gl->vertBuf, sizeof(gl->vertBuf));
+#if defined NANOVG_GL3
+    gl->vertArr = 0;
+#endif
+#if NANOVG_GL_USE_UNIFORMBUFFER
+    gl->fragBuf = 0;
+#endif
+    for(int i = 0; i < gl->ntextures; ++i) gl->textures[i].tex = 0;
+    nvgCancelFrame(active_unit->vg);
+    active_unit->is_started = false;
+    lv_draw_nanovg_release();
+}
+
+void lv_draw_nanovg_invalidate_fonts(void)
+{
+    if(!active_unit || !active_unit->vg) return;
+    lv_nanovg_end_frame(active_unit);
+    lv_cache_drop_all(active_unit->letter_cache, NULL);
+    lv_nanovg_image_cache_drop(active_unit, NULL);
+}
+
+struct NVGLUframebuffer * lv_nanovg_framebuffer_create(lv_draw_nanovg_unit_t * u, int w, int h)
+{
+    return nvgluCreateFramebuffer(u->vg, w, h, 0, NVG_TEXTURE_RGBA);
+}
+
+void lv_nanovg_framebuffer_delete(struct NVGLUframebuffer * fb)
+{
+    nvgluDeleteFramebuffer(fb);
+}
+
+unsigned int lv_nanovg_framebuffer_texture(struct NVGLUframebuffer * fb)
+{
+    return fb ? fb->texture : 0;
+}
+
+unsigned int lv_nanovg_framebuffer_id(struct NVGLUframebuffer * fb)
+{
+    return fb ? fb->fbo : 0;
+}
+
+int lv_nanovg_import_texture(lv_draw_nanovg_unit_t * u, unsigned int texture, int w, int h, int flags)
+{
+#if LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GL3
+    return nvglCreateImageFromHandleGL3(u->vg, texture, w, h, flags | NVG_IMAGE_NODELETE);
+#elif LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GLES3
+    return nvglCreateImageFromHandleGLES3(u->vg, texture, w, h, flags | NVG_IMAGE_NODELETE);
+#else
+    LV_UNUSED(u);
+    LV_UNUSED(texture);
+    LV_UNUSED(w);
+    LV_UNUSED(h);
+    LV_UNUSED(flags);
+    return 0;
+#endif
 }
 
 static void draw_event_cb(lv_event_t * e)

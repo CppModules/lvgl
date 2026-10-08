@@ -46,13 +46,15 @@ void lv_draw_nanovg_layer(lv_draw_task_t * t, const lv_draw_image_dsc_t * draw_d
     lv_draw_nanovg_unit_t * u = (lv_draw_nanovg_unit_t *)t->draw_unit;
     lv_layer_t * layer = (lv_layer_t *)draw_dsc->src;
 
-    if(!layer->user_data) {
+    if(!u->layer_image && !layer->user_data) {
         LV_PROFILER_DRAW_END;
         return;
     }
 
-    int image_handle = lv_nanovg_fb_get_image_handle(lv_nanovg_fbo_cache_entry_to_fb(layer->user_data));
+    int image_handle = u->layer_image ? u->layer_image(layer) :
+                       lv_nanovg_fb_get_image_handle(lv_nanovg_fbo_cache_entry_to_fb(layer->user_data));
     if(image_handle <= 0) {
+        u->failed = true;
         LV_LOG_WARN("Invalid image handle: %d", image_handle);
         LV_PROFILER_DRAW_END;
         return;

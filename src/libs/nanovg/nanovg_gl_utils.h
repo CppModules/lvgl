@@ -72,8 +72,13 @@ NVGLUframebuffer * nvgluCreateFramebuffer(NVGcontext * ctx, int w, int h, int im
     fb = (NVGLUframebuffer *)lv_malloc(sizeof(NVGLUframebuffer));
     if(fb == NULL) goto error;
     lv_memzero(fb, sizeof(NVGLUframebuffer));
+    fb->ctx = ctx;
 
     fb->image = nvgCreateImage(ctx, w, h, imageFlags | NVG_IMAGE_FLIPY | NVG_IMAGE_PREMULTIPLIED, format, NULL);
+    if(fb->image <= 0) {
+        fb->image = -1;
+        goto error;
+    }
 
 #if defined NANOVG_GL2
     fb->texture = nvglImageHandleGL2(ctx, fb->image);
@@ -84,8 +89,6 @@ NVGLUframebuffer * nvgluCreateFramebuffer(NVGcontext * ctx, int w, int h, int im
 #elif defined NANOVG_GLES3
     fb->texture = nvglImageHandleGLES3(ctx, fb->image);
 #endif
-
-    fb->ctx = ctx;
 
     // frame buffer object
     glGenFramebuffers(1, &fb->fbo);

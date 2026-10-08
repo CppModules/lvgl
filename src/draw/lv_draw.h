@@ -141,6 +141,7 @@ struct _lv_layer_t  {
 
     /** Flag indicating all tasks are added */
     bool all_tasks_added;
+    bool gpu_target;
 
     /** Opacity of the layer */
     lv_opa_t opa;

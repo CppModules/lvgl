@@ -193,7 +193,7 @@ static void draw_letter_bitmap(lv_draw_task_t * t, const lv_draw_glyph_dsc_t * d
         nvgFill(u->vg);
     }
     else {
-        /* TODO: draw rotated bitmap */
+        u->failed = true;
     }
 
     LV_PROFILER_DRAW_END;
@@ -214,11 +214,14 @@ static inline int letter_get_image_handle(lv_draw_nanovg_unit_t * u, lv_font_gly
         size_t free_size = lv_cache_get_free_size(u->letter_cache, NULL);
         if(free_size == 0) {
             LV_LOG_INFO("letter cache is full, release all pending cache entries");
+            bool started = u->is_started;
             lv_nanovg_end_frame(u);
+            u->is_started = started;
         }
 
         cache_node_entry = lv_cache_acquire_or_create(u->letter_cache, &search_key, NULL);
         if(cache_node_entry == NULL) {
+            u->failed = true;
             LV_LOG_ERROR("letter cache creating failed");
             LV_PROFILER_DRAW_END;
             return -1;
@@ -252,22 +255,31 @@ static bool letter_create_cb(letter_item_t * item, void * user_data)
 
     lv_draw_buf_t * image_buf = lv_nanovg_reshape_global_image(item->u, LV_COLOR_FORMAT_A8, w, h);
     if(!image_buf) {
+        item->u->failed = true;
         LV_PROFILER_DRAW_END;
         return false;
     }
 
-    if(!lv_font_get_glyph_bitmap(g_dsc, image_buf)) {
+    lv_font_glyph_dsc_t glyph = *g_dsc;
+    const lv_draw_buf_t * bitmap = lv_font_get_glyph_bitmap(&glyph, image_buf);
+    if(!bitmap) {
+        lv_font_glyph_release_draw_data(&glyph);
+        item->u->failed = true;
         LV_PROFILER_DRAW_END;
         return false;
     }
+    if(bitmap != image_buf) lv_draw_buf_copy(image_buf, NULL, bitmap, NULL);
 
     LV_PROFILER_DRAW_BEGIN_TAG("nvgCreateImage");
     item->image_handle = nvgCreateImage(item->u->vg, w, h, 0, NVG_TEXTURE_ALPHA, lv_draw_buf_goto_xy(image_buf, 0, 0));
+    lv_font_glyph_release_draw_data(&glyph);
     LV_PROFILER_DRAW_END_TAG("nvgCreateImage");
 
     LV_LOG_TRACE("image_handle: %d", item->image_handle);
     LV_PROFILER_DRAW_END;
-    return true;
+    item->u->failed = item->u->failed || item->image_handle <= 0;
+    if(item->image_handle > 0) item->u->upload_bytes += (uint64_t)w * h;
+    return item->image_handle > 0;
 }
 
 static void letter_free_cb(letter_item_t * item, void * user_data)
@@ -319,7 +331,7 @@ static void draw_letter_cb(lv_draw_task_t * t, lv_draw_glyph_dsc_t * glyph_draw_
                             return;
                         }
 
-                        /* TODO: draw_letter_outline(t, glyph_draw_dsc); */
+                        u->failed = true;
                     }
                 }
                 break;
@@ -328,15 +340,22 @@ static void draw_letter_cb(lv_draw_task_t * t, lv_draw_glyph_dsc_t * glyph_draw_
             case LV_FONT_GLYPH_FORMAT_IMAGE: {
                     glyph_draw_dsc->glyph_data = lv_font_get_glyph_bitmap(glyph_draw_dsc->g, glyph_draw_dsc->_draw_buf);
                     if(!glyph_draw_dsc->glyph_data) {
+                        u->failed = true;
                         return;
                     }
+                    bool started = u->is_started;
+                    lv_nanovg_end_frame(u);
+                    u->is_started = started;
+                    lv_nanovg_image_cache_drop(u, glyph_draw_dsc->glyph_data);
 
                     lv_draw_image_dsc_t image_dsc;
                     lv_draw_image_dsc_init(&image_dsc);
                     image_dsc.opa = glyph_draw_dsc->opa;
                     image_dsc.src = glyph_draw_dsc->glyph_data;
                     image_dsc.rotation = glyph_draw_dsc->rotation;
+                    nvgSave(u->vg);
                     lv_draw_nanovg_image(t, &image_dsc, glyph_draw_dsc->letter_coords, -1);
+                    nvgRestore(u->vg);
                 }
                 break;
 
