@@ -46,6 +46,7 @@ void lv_refr_deinit(void);
  * @return LV_RESULT_OK: the area is invalidated; LV_RESULT_INVALID: the area wasn't invalidated.
  */
 lv_result_t lv_inv_area(lv_display_t * disp, const lv_area_t * area_p);
+lv_result_t lv_inv_area_from_obj(lv_display_t * disp, const lv_area_t * area_p, const lv_obj_t * source);
 
 /**
  * Get the display which is being refreshed

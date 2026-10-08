@@ -109,6 +109,7 @@ struct _lv_display_t {
     uint8_t inv_area_joined[LV_INV_BUF_SIZE];
     uint32_t inv_p;
     int32_t inv_en_cnt;
+    const lv_obj_t * inv_source;
 
     /** Double buffer sync areas (redrawn during last refresh) */
     lv_ll_t sync_areas;
