@@ -530,8 +530,6 @@ static int glnvg__renderCreate(void * uptr)
     GLNVGcontext * gl = (GLNVGcontext *)uptr;
     int align = 4;
 
-    // TODO: mediump float may not be enough for GLES2 in iOS.
-    // see the following discussion: https://github.com/memononen/nanovg/issues/46
     static const char * shaderHeader =
 #if defined NANOVG_GL2
         "#define NANOVG_GL2 1\n"
@@ -555,7 +553,7 @@ static int glnvg__renderCreate(void * uptr)
 
     static const char * fillVertShader =
         "#ifdef GL_ES\n"
-        "#if defined(NANOVG_GL3)\n"
+        "#if defined(NANOVG_GL3) || defined(NANOVG_HIGHP)\n"
         " precision highp float;\n"
         "#else\n"
         " precision mediump float;\n"
@@ -619,7 +617,7 @@ static int glnvg__renderCreate(void * uptr)
 
     static const char * fillFragShader =
         "#ifdef GL_ES\n"
-        "#if defined(NANOVG_GL3)\n"
+        "#if defined(NANOVG_GL3) || defined(NANOVG_HIGHP)\n"
         " precision highp float;\n"
         "#else\n"
         " precision mediump float;\n"
@@ -757,10 +755,17 @@ static int glnvg__renderCreate(void * uptr)
     glnvg__checkError(gl, "init");
 
     int i;
-    char opts[64];
+    const char * precision_option = "";
+#if defined(NANOVG_GLES2)
+    GLint precision_range[2];
+    GLint precision_bits = 0;
+    glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, precision_range, &precision_bits);
+    if(precision_bits > 0) precision_option = "#define NANOVG_HIGHP 1\n";
+#endif
+    char opts[96];
     for(i = 0; i < GLNVG_SHADER_COUNT; i++) {
-        lv_snprintf(opts, sizeof(opts), "#define SHADER_TYPE %d\n%s", i,
-                    (gl->flags & NVG_ANTIALIAS) ? "#define EDGE_AA 1\n" : "");
+        lv_snprintf(opts, sizeof(opts), "#define SHADER_TYPE %d\n%s%s", i,
+                    (gl->flags & NVG_ANTIALIAS) ? "#define EDGE_AA 1\n" : "", precision_option);
         if(glnvg__createShader(&gl->shaders[i], "shader", shaderHeader, opts, fillVertShader, fillFragShader) == 0)
             return 0;
         glnvg__checkError(gl, "uniform locations");

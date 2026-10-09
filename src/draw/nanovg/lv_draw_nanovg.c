@@ -290,53 +290,49 @@ static void on_layer_readback(lv_draw_nanovg_unit_t * u, lv_layer_t * layer)
     int32_t h = lv_area_get_height(&layer->buf_area);
     lv_draw_buf_t * draw_buf = layer->draw_buf;
 
-    /* Read pixels from FBO */
-    GLenum format;
-    GLenum type;
-
-    /* OpenGL reads bottom-to-top, but LVGL expects top-to-bottom */
     switch(draw_buf->header.cf) {
         case LV_COLOR_FORMAT_ARGB8888:
         case LV_COLOR_FORMAT_XRGB8888:
         case LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED:
-            format = GL_BGRA;
-            type = GL_UNSIGNED_BYTE;
-            break;
-
         case LV_COLOR_FORMAT_RGB888:
-            format = GL_RGB;
-            type = GL_UNSIGNED_BYTE;
-            break;
-
         case LV_COLOR_FORMAT_RGB565:
-            format = GL_RGB;
-            type = GL_UNSIGNED_SHORT_5_6_5;
             break;
-
         default:
             LV_LOG_WARN("Unsupported color format: %d", draw_buf->header.cf);
+            nvgluBindFramebuffer(NULL);
             LV_PROFILER_DRAW_END;
             return;
     }
 
+    uint8_t * rgba = lv_malloc((size_t)w * 4);
+    if(!rgba) {
+        nvgluBindFramebuffer(NULL);
+        LV_PROFILER_DRAW_END;
+        return;
+    }
     for(int32_t y = 0; y < h; y++) {
-        /* Reverse Y coordinate */
-        void * row = lv_draw_buf_goto_xy(draw_buf, 0, h - 1 - y);
+        uint8_t * row = lv_draw_buf_goto_xy(draw_buf, 0, h - 1 - y);
         LV_PROFILER_DRAW_BEGIN_TAG("glReadPixels");
-        glReadPixels(0, y, w, 1, format, type, row);
+        glReadPixels(0, y, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         LV_PROFILER_DRAW_END_TAG("glReadPixels");
-
-        if(draw_buf->header.cf == LV_COLOR_FORMAT_RGB888) {
-            /* Swizzle RGB -> BGR */
-            lv_color_t * px = row;
-            for(int32_t x = 0; x < w; x++) {
-                uint8_t r = px->blue;
-                px->blue = px->red;
-                px->red = r;
-                px++;
+        for(int32_t x = 0; x < w; x++) {
+            const uint8_t * pixel = rgba + (size_t)x * 4;
+            if(draw_buf->header.cf == LV_COLOR_FORMAT_RGB565) {
+                uint16_t value = (uint16_t)(((pixel[0] & 0xf8) << 8) |
+                                           ((pixel[1] & 0xfc) << 3) | (pixel[2] >> 3));
+                lv_memcpy(row + (size_t)x * 2, &value, 2);
+            }
+            else {
+                const int channels = draw_buf->header.cf == LV_COLOR_FORMAT_RGB888 ? 3 : 4;
+                uint8_t * destination = row + (size_t)x * channels;
+                destination[0] = pixel[2];
+                destination[1] = pixel[1];
+                destination[2] = pixel[0];
+                if(channels == 4) destination[3] = pixel[3];
             }
         }
     }
+    lv_free(rgba);
 
     /* Bind back to default framebuffer */
     nvgluBindFramebuffer(NULL);
@@ -504,6 +500,8 @@ int lv_nanovg_import_texture(lv_draw_nanovg_unit_t * u, unsigned int texture, in
     return nvglCreateImageFromHandleGL3(u->vg, texture, w, h, flags | NVG_IMAGE_NODELETE);
 #elif LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GLES3
     return nvglCreateImageFromHandleGLES3(u->vg, texture, w, h, flags | NVG_IMAGE_NODELETE);
+#elif LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GLES2
+    return nvglCreateImageFromHandleGLES2(u->vg, texture, w, h, flags | NVG_IMAGE_NODELETE);
 #else
     LV_UNUSED(u);
     LV_UNUSED(texture);

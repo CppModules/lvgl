@@ -25,7 +25,10 @@ extern "C" {
 #error "LV_USE_OPENGLES requires LV_USE_MATRIX"
 #endif
 
-#if LV_USE_EGL
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+#include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
+#elif LV_USE_EGL
 #include "glad/include/glad/gles2.h"
 #include "glad/include/glad/egl.h"
 #else
@@ -54,6 +57,7 @@ extern "C" {
 #define GL_UNPACK_ROW_LENGTH GL_UNPACK_ROW_LENGTH_EXT
 #endif /*GL_UNPACK_ROW_LENGTH*/
 
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
 #ifndef glGenVertexArrays
 #define glGenVertexArrays glGenVertexArraysOES
 #endif
@@ -68,6 +72,7 @@ extern "C" {
 
 #ifndef glTexStorage2D
 #define glTexStorage2D glTexStorage2DEXT
+#endif
 #endif
 
 #ifndef GL_RGBA32F
@@ -86,7 +91,7 @@ extern "C" {
 #endif
 
 /* In Desktop GL GL_RGB565 is not supported. Use RGB instead */
-#if !LV_USE_EGL
+#if !LV_USE_EGL && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
 #define GL_RGB565 GL_RGB
 #endif
 
