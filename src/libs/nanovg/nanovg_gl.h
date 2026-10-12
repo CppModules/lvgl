@@ -697,9 +697,9 @@ static int glnvg__renderCreate(void * uptr)
         "	#if SHADER_TYPE != 2\n" // Not SIMPLE
         "		float scissor = scissorMask(v_scissorPos);\n"
         "	#endif\n"
-        "#ifdef EDGE_AA\n"
+        "#if defined(EDGE_AA) && SHADER_TYPE != 2\n"
         "	float strokeAlpha = strokeMask();\n"
-        "	// if (strokeAlpha < strokeThr) discard;\n"
+        "	if (strokeAlpha < strokeThr) discard;\n"
         "#else\n"
         "	float strokeAlpha = 1.0;\n"
         "#endif\n"
@@ -1229,7 +1229,7 @@ static void glnvg__stroke(GLNVGcontext * gl, GLNVGcall * call)
         // Fill the stroke base without overlap
         glnvg__stencilFunc(gl, GL_EQUAL, 0x0, 0xff);
         glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-        glnvg__setUniforms(gl, call->uniformOffset + gl->fragSize, call->image, NSVG_SHADER_SIMPLE);
+        glnvg__setUniforms(gl, call->uniformOffset + gl->fragSize, call->image, call->shaderType);
         glnvg__checkError(gl, "stroke fill 0");
         for(i = 0; i < npaths; i++)
             glDrawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);

@@ -65,7 +65,26 @@ void lv_draw_nanovg_border(lv_draw_task_t * t, const lv_draw_border_dsc_t * dsc,
         r_out = LV_MIN(r_out, r_short);
     }
 
+    bool use_stroke = dsc->side == LV_BORDER_SIDE_FULL && dsc->width < r_out && dsc->width <= 200;
+#if LV_DRAW_TRANSFORM_USE_MATRIX
+    use_stroke = use_stroke && lv_matrix_is_identity_or_translation(&t->matrix);
+#endif
+
     nvgBeginPath(u->vg);
+
+    if(use_stroke) {
+        const float inset = dsc->width / 2.0f;
+        lv_nanovg_path_append_rect(u->vg,
+                                  coords->x1 + inset, coords->y1 + inset,
+                                  w - dsc->width, h - dsc->width,
+                                  r_out - inset);
+        nvgGlobalCompositeOperation(u->vg, NVG_SOURCE_OVER);
+        nvgStrokeWidth(u->vg, dsc->width);
+        nvgStrokeColor(u->vg, lv_nanovg_color_convert(dsc->color, dsc->opa));
+        nvgStroke(u->vg);
+        LV_PROFILER_DRAW_END;
+        return;
+    }
 
     /* outer rect */
     lv_nanovg_path_append_rect(u->vg,
