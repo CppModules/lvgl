@@ -4,7 +4,7 @@
 
 #include "../../lv_opengles_private.h"
 
-#if LV_USE_OPENGLES && !LV_USE_EGL
+#if LV_USE_OPENGLES && !LV_USE_EGL && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
 
 #include <stdio.h>
 #include <stdlib.h>
