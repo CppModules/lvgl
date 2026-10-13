@@ -290,6 +290,28 @@ struct GLNVGcontext {
 };
 typedef struct GLNVGcontext GLNVGcontext;
 
+#if HIYUI_DIAGNOSTICS
+#include <hiyui/misc/detail/diagnostics_memory.h>
+
+static void glnvg__recordTexture(GLNVGcontext * gl, const GLNVGtexture * tex)
+{
+    if(!tex->tex || (tex->flags & NVG_IMAGE_NODELETE) || tex->width <= 0 || tex->height <= 0) return;
+    uint64_t pixel_bytes = tex->type == NVG_TEXTURE_ALPHA ? 1 :
+                           tex->type == NVG_TEXTURE_BGR ? 3 : tex->type == NVG_TEXTURE_RGB565 ? 2 : 4;
+    uint64_t w = tex->width;
+    uint64_t h = tex->height;
+    uint64_t bytes = w * h * pixel_bytes;
+    if(tex->flags & NVG_IMAGE_GENERATE_MIPMAPS) {
+        while(w > 1 || h > 1) {
+            w = w > 1 ? w / 2 : 1;
+            h = h > 1 ? h / 2 : 1;
+            bytes += w * h * pixel_bytes;
+        }
+    }
+    hiyui_memory_set(HIYUI_MEMORY_GPU_TEXTURE, gl, tex->tex, bytes);
+}
+#endif
+
 static int glnvg__maxi(int a, int b)
 {
     return a > b ? a : b;
@@ -408,8 +430,12 @@ static int glnvg__deleteTexture(GLNVGcontext * gl, int id)
     int i;
     for(i = 0; i < gl->ntextures; i++) {
         if(gl->textures[i].id == id) {
-            if(gl->textures[i].tex != 0 && (gl->textures[i].flags & NVG_IMAGE_NODELETE) == 0)
+            if(gl->textures[i].tex != 0 && (gl->textures[i].flags & NVG_IMAGE_NODELETE) == 0) {
+#if HIYUI_DIAGNOSTICS
+                hiyui_memory_remove(HIYUI_MEMORY_GPU_TEXTURE, gl, gl->textures[i].tex);
+#endif
                 glDeleteTextures(1, &gl->textures[i].tex);
+            }
             lv_memzero(&gl->textures[i], sizeof(gl->textures[i]));
             return 1;
         }
@@ -910,6 +936,9 @@ static int glnvg__renderCreateTexture(void * uptr, int type, int w, int h, int i
 #endif
 
     glnvg__checkError(gl, "create tex");
+#if HIYUI_DIAGNOSTICS
+    glnvg__recordTexture(gl, tex);
+#endif
     glnvg__bindTexture(gl, 0);
 
     return tex->id;
@@ -1371,6 +1400,9 @@ static void glnvg__renderFlush(void * uptr)
         LV_PROFILER_DRAW_END_TAG("glBindBuffer");
         LV_PROFILER_DRAW_BEGIN_TAG("glBufferData");
         glBufferData(GL_UNIFORM_BUFFER, gl->nuniforms * gl->fragSize, gl->uniforms, GL_STREAM_DRAW);
+#if HIYUI_DIAGNOSTICS
+        hiyui_memory_set(HIYUI_MEMORY_GPU_BUFFER, gl, gl->fragBuf, (uint64_t)gl->nuniforms * gl->fragSize);
+#endif
         LV_PROFILER_DRAW_END_TAG("glBufferData");
 #endif
 
@@ -1386,6 +1418,10 @@ static void glnvg__renderFlush(void * uptr)
         LV_PROFILER_DRAW_END_TAG("glBindBuffer");
         LV_PROFILER_DRAW_BEGIN_TAG("glBufferData");
         glBufferData(GL_ARRAY_BUFFER, gl->nverts * sizeof(NVGvertex), gl->verts, GL_STREAM_DRAW);
+#if HIYUI_DIAGNOSTICS
+        hiyui_memory_set(HIYUI_MEMORY_GPU_BUFFER, gl, gl->vertBuf[gl->vertBufIndex],
+                         (uint64_t)gl->nverts * sizeof(NVGvertex));
+#endif
         LV_PROFILER_DRAW_END_TAG("glBufferData");
         LV_PROFILER_DRAW_BEGIN_TAG("glEnableVertexAttribArray");
         glEnableVertexAttribArray(0);
@@ -1716,6 +1752,9 @@ static void glnvg__renderDelete(void * uptr)
     GLNVGcontext * gl = (GLNVGcontext *)uptr;
     int i;
     if(gl == NULL) return;
+#if HIYUI_DIAGNOSTICS
+    hiyui_memory_remove_owner(gl);
+#endif
 
     for(i = 0; i < GLNVG_SHADER_COUNT; i++)
         glnvg__deleteShader(&gl->shaders[i]);
@@ -1824,6 +1863,10 @@ error:
     tex->flags = imageFlags;
     tex->width = w;
     tex->height = h;
+
+#if HIYUI_DIAGNOSTICS
+    glnvg__recordTexture(gl, tex);
+#endif
 
     return tex->id;
 }

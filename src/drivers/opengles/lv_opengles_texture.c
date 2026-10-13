@@ -8,6 +8,9 @@
  *********************/
 
 #include "lv_opengles_texture.h"
+#if HIYUI_DIAGNOSTICS
+#include <hiyui/misc/detail/diagnostics_memory.h>
+#endif
 #if LV_USE_OPENGLES
 
 #include "lv_opengles_debug.h"
@@ -63,6 +66,9 @@ lv_display_t * lv_opengles_texture_create(int32_t w, int32_t h)
     unsigned int texture_id = create_texture(w, h);
     texture->texture_id = texture_id;
     texture->is_texture_owner = true;
+#if HIYUI_DIAGNOSTICS
+    if(texture_id) hiyui_memory_set(HIYUI_MEMORY_GPU_TEXTURE, texture, 0, (uint64_t)w * h * (LV_COLOR_DEPTH / 8));
+#endif
     /* Attach the texture to the display after the texture id has been set*/
     lv_opengles_texture_attach_to_display(texture, display);
     return display;
@@ -116,6 +122,10 @@ lv_result_t lv_opengles_texture_reshape(lv_opengles_texture_t * texture, lv_disp
         GL_CALL(glDeleteTextures(1, &texture->texture_id));
     }
     texture->texture_id = new_texture;
+#if HIYUI_DIAGNOSTICS
+    if(texture->is_texture_owner)
+        hiyui_memory_set(HIYUI_MEMORY_GPU_TEXTURE, texture, 0, (uint64_t)width * height * (LV_COLOR_DEPTH / 8));
+#endif
     lv_opengles_texture_attach_to_display(texture, display);
     return LV_RESULT_OK;
 }
@@ -153,6 +163,9 @@ static lv_result_t lv_opengles_texture_create_draw_buffers(lv_opengles_texture_t
 
 void lv_opengles_texture_deinit(lv_opengles_texture_t * texture)
 {
+#if HIYUI_DIAGNOSTICS
+    hiyui_memory_remove(HIYUI_MEMORY_GPU_TEXTURE, texture, 0);
+#endif
 #if !LV_USE_DRAW_OPENGLES
     lv_free(texture->fb1);
 #endif /*!LV_USE_DRAW_OPENGLES*/

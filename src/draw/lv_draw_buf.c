@@ -13,6 +13,9 @@
 #include "../misc/lv_math.h"
 #include "../misc/lv_area_private.h"
 #include "convert/lv_draw_buf_convert.h"
+#if HIYUI_DIAGNOSTICS
+#include <hiyui/misc/detail/diagnostics_memory.h>
+#endif
 
 /*********************
  *      DEFINES
@@ -286,6 +289,14 @@ lv_draw_buf_t * lv_draw_buf_create_ex(const lv_draw_buf_handlers_t * handlers, u
     draw_buf->unaligned_data = buf;
     draw_buf->data_size = size;
     draw_buf->handlers = handlers;
+#if HIYUI_DIAGNOSTICS
+    uint64_t allocated_bytes = size;
+    if(handlers->buf_malloc_cb == buf_malloc) allocated_bytes += LV_DRAW_BUF_ALIGN - 1;
+    if(handlers == &image_cache_draw_buf_handlers)
+        hiyui_memory_set(HIYUI_MEMORY_IMAGE_DECODED, draw_buf, 0, allocated_bytes);
+    else if(handlers == &font_draw_buf_handlers)
+        hiyui_memory_set(HIYUI_MEMORY_FONT_GLYPH, draw_buf, 0, allocated_bytes);
+#endif
     LV_PROFILER_DRAW_END;
     return draw_buf;
 }
@@ -352,6 +363,11 @@ void lv_draw_buf_destroy(lv_draw_buf_t * draw_buf)
         LV_ASSERT_NULL(draw_buf->handlers);
 
         const lv_draw_buf_handlers_t * handlers = draw_buf->handlers;
+#if HIYUI_DIAGNOSTICS
+        hiyui_memory_remove(HIYUI_MEMORY_IMAGE_DECODED, draw_buf, 0);
+        hiyui_memory_remove(HIYUI_MEMORY_FONT_GLYPH, draw_buf, 0);
+        hiyui_memory_remove(HIYUI_MEMORY_IMAGE_GIF, draw_buf, 0);
+#endif
         draw_buf_free(handlers, draw_buf->unaligned_data);
         lv_free(draw_buf);
     }

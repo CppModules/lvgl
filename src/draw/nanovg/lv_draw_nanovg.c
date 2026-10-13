@@ -452,6 +452,9 @@ void lv_draw_nanovg_abandon(void)
 {
     if(!active_unit || !active_unit->vg) return;
     GLNVGcontext * gl = nvgInternalParams(active_unit->vg)->userPtr;
+#if HIYUI_DIAGNOSTICS
+    hiyui_memory_remove_owner(gl);
+#endif
     lv_memzero(gl->shaders, sizeof(gl->shaders));
     lv_memzero(gl->vertBuf, sizeof(gl->vertBuf));
 #if defined NANOVG_GL3

@@ -7,6 +7,9 @@
  *      INCLUDES
  *********************/
 #include "lv_gif.h"
+#if HIYUI_DIAGNOSTICS
+#include <hiyui/misc/detail/diagnostics_memory.h>
+#endif
 
 #if LV_USE_GIF
 #include "../../misc/lv_timer_private.h"
@@ -563,6 +566,9 @@ static void gif_initialize(lv_gif_t * gifobj)
         return;
     }
 
+#if HIYUI_DIAGNOSTICS
+    hiyui_memory_set(HIYUI_MEMORY_IMAGE_GIF, gifobj->draw_buf, 0, gifobj->draw_buf->data_size);
+#endif
     lv_image_set_src((lv_obj_t *) gifobj, gifobj->draw_buf);
 
     gifobj->loop_count = GIF_getLoopCount(&gifobj->gif);

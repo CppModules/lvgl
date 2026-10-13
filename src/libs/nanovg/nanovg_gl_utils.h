@@ -66,6 +66,9 @@ NVGLUframebuffer * nvgluCreateFramebuffer(NVGcontext * ctx, int w, int h, int im
     GLint defFBO;
     GLint defaultRBO;
     NVGLUframebuffer * fb = NULL;
+#if HIYUI_DIAGNOSTICS
+    uint64_t attachment_bytes = (uint64_t)w * h;
+#endif
 
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &defFBO);
     glGetIntegerv(GL_RENDERBUFFER_BINDING, &defaultRBO);
@@ -112,6 +115,9 @@ NVGLUframebuffer * nvgluCreateFramebuffer(NVGcontext * ctx, int w, int h, int im
             goto error;
 #endif
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+#if HIYUI_DIAGNOSTICS
+        attachment_bytes = (uint64_t)w * h * 4;
+#endif
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->texture, 0);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb->rbo);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb->rbo);
@@ -123,6 +129,9 @@ NVGLUframebuffer * nvgluCreateFramebuffer(NVGcontext * ctx, int w, int h, int im
 
     glBindFramebuffer(GL_FRAMEBUFFER, defFBO);
     glBindRenderbuffer(GL_RENDERBUFFER, defaultRBO);
+#if HIYUI_DIAGNOSTICS
+    hiyui_memory_set(HIYUI_MEMORY_GPU_ATTACHMENT, nvgInternalParams(ctx)->userPtr, fb->rbo, attachment_bytes);
+#endif
     return fb;
 error:
     glBindFramebuffer(GL_FRAMEBUFFER, defFBO);
@@ -153,6 +162,9 @@ void nvgluDeleteFramebuffer(NVGLUframebuffer * fb)
 {
 #ifdef NANOVG_FBO_VALID
     if(fb == NULL) return;
+#if HIYUI_DIAGNOSTICS
+    if(fb->ctx) hiyui_memory_remove(HIYUI_MEMORY_GPU_ATTACHMENT, nvgInternalParams(fb->ctx)->userPtr, fb->rbo);
+#endif
     if(fb->fbo != 0)
         glDeleteFramebuffers(1, &fb->fbo);
     if(fb->rbo != 0)
