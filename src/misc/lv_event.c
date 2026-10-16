@@ -147,10 +147,13 @@ lv_result_t lv_event_send(lv_event_list_t * list, lv_event_t * e, bool preproces
 
     if(is_traversing) return res;
 
-    if(e->deleted) cleanup_event_list_core(&back_array_head);
+    if(e->current_target_deleted) cleanup_event_list_core(&back_array_head);
     else {
+        lv_array_t array_before_cleanup = list->array;
         list->is_traversing = false;
         cleanup_event_list(list);
+        if(back_array_head.data != array_before_cleanup.data)
+            lv_free(back_array_head.data);
     }
 
     return res;
@@ -173,6 +176,14 @@ lv_event_dsc_t * lv_event_add(lv_event_list_t * list, lv_event_cb_t cb, lv_event
     if(event_array_size(list) == 0) {
         /*event list hasn't been initialized.*/
         lv_array_init(&list->array, 1, sizeof(lv_event_dsc_t *));
+    }
+    else if(list->is_traversing && list->array.size == list->array.capacity) {
+        lv_array_t grown;
+        lv_array_init(&grown, list->array.capacity + LV_ARRAY_DEFAULT_CAPACITY,
+                      sizeof(lv_event_dsc_t *));
+        for(uint32_t i = 0; i < list->array.size; i++)
+            lv_array_push_back(&grown, event_array_at(list, i));
+        list->array = grown;
     }
 
     lv_array_push_back(&list->array, &dsc);
@@ -320,7 +331,10 @@ void lv_event_mark_deleted(void * target)
     lv_event_t * e = event_head;
 
     while(e) {
-        if(e->original_target == target || e->current_target == target) e->deleted = 1;
+        if(e->original_target == target || e->current_target == target) {
+            e->deleted = 1;
+            if(e->current_target == target) e->current_target_deleted = 1;
+        }
         e = e->prev;
     }
 }

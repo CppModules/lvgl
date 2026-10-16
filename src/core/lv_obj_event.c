@@ -59,6 +59,7 @@ lv_result_t lv_obj_send_event(lv_obj_t * obj, lv_event_code_t event_code, void *
     e.user_data = NULL;
     e.param = param;
     e.deleted = 0;
+    e.current_target_deleted = 0;
     e.stop_bubbling = 0;
     e.stop_processing = 0;
     e.stop_trickling = 0;
